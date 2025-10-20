@@ -73,7 +73,7 @@ func (r *IncomeRepository) GetFinancialSummary(userID uint) (*FinancialSummary, 
 
 	// Get total income
 	var totalIncome float64
-	result := r.db.Model(&Income{}).Where("user_id = ?", userID).Select("COALESCE(SUM(total_amount), 0)").Scan(&totalIncome)
+	result := r.db.Model(&Income{}).Where("user_id = ? AND deleted_at IS NULL", userID).Select("COALESCE(SUM(total_amount), 0)").Scan(&totalIncome)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -81,7 +81,7 @@ func (r *IncomeRepository) GetFinancialSummary(userID uint) (*FinancialSummary, 
 
 	// Get total receivables (unpaid amounts)
 	var totalReceivables float64
-	result = r.db.Model(&Income{}).Where("user_id = ? AND payment_status IN (?, ?)", userID, PaymentUnpaid, PaymentPartial).
+	result = r.db.Model(&Income{}).Where("user_id = ? AND deleted_at IS NULL AND payment_status IN (?, ?)", userID, PaymentUnpaid, PaymentPartial).
 		Select("COALESCE(SUM(amount_due), 0)").Scan(&totalReceivables)
 	if result.Error != nil {
 		return nil, result.Error

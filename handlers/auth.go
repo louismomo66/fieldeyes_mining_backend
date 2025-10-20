@@ -308,8 +308,9 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Name  string `json:"name"`
-		Phone string `json:"phone,omitempty"`
+		Name     string  `json:"name"`
+		Phone    *string `json:"phone,omitempty"`
+		Location *string `json:"location,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.WriteValidationError(w, "Invalid request body")
@@ -321,7 +322,7 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		utils.WriteValidationError(w, "Name is required")
 		return
 	}
-	if req.Phone != "" && !utils.ValidatePhone(req.Phone) {
+	if req.Phone != nil && *req.Phone != "" && !utils.ValidatePhone(*req.Phone) {
 		utils.WriteValidationError(w, "Invalid phone number format")
 		return
 	}
@@ -335,11 +336,8 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	// Update user
 	user.Name = req.Name
-	if req.Phone == "" {
-		user.Phone = nil
-	} else {
-		user.Phone = &req.Phone
-	}
+	user.Phone = req.Phone
+	user.Location = req.Location
 
 	err = h.UserRepo.Update(user)
 	if err != nil {
@@ -349,11 +347,12 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	// Return updated profile
 	response := map[string]interface{}{
-		"id":    user.ID,
-		"email": user.Email,
-		"name":  user.Name,
-		"phone": user.Phone,
-		"role":  user.Role,
+		"id":       user.ID,
+		"email":    user.Email,
+		"name":     user.Name,
+		"phone":    user.Phone,
+		"location": user.Location,
+		"role":     user.Role,
 	}
 
 	utils.WriteSuccessResponse(w, "Profile updated successfully", response)

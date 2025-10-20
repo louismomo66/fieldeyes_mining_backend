@@ -125,7 +125,7 @@ func (r *ExpenseRepository) GetFinancialSummary(userID uint) (*FinancialSummary,
 
 	// Get total expenses
 	var totalExpenses float64
-	result := r.db.Model(&Expense{}).Where("user_id = ?", userID).Select("COALESCE(SUM(amount), 0)").Scan(&totalExpenses)
+	result := r.db.Model(&Expense{}).Where("user_id = ? AND deleted_at IS NULL", userID).Select("COALESCE(SUM(amount), 0)").Scan(&totalExpenses)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -133,7 +133,7 @@ func (r *ExpenseRepository) GetFinancialSummary(userID uint) (*FinancialSummary,
 
 	// Get total payables (unpaid amounts)
 	var totalPayables float64
-	result = r.db.Model(&Expense{}).Where("user_id = ? AND payment_status IN (?, ?)", userID, PaymentUnpaid, PaymentPartial).
+	result = r.db.Model(&Expense{}).Where("user_id = ? AND deleted_at IS NULL AND payment_status IN (?, ?)", userID, PaymentUnpaid, PaymentPartial).
 		Select("COALESCE(SUM(amount_due), 0)").Scan(&totalPayables)
 	if result.Error != nil {
 		return nil, result.Error
