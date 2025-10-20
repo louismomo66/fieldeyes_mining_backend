@@ -16,8 +16,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main cmd/api/main.go
+# Build the application (build the whole cmd/api package so other files like config.go/db.go are included)
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/api
 
 # Final stage
 FROM alpine:latest
@@ -41,8 +41,8 @@ RUN chown appuser:appgroup main
 # Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 8080
+# Expose port (backend runs on 9006)
+EXPOSE 9006
 
 # Run the application
 CMD ["./main"]

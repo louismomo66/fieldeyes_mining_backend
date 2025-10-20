@@ -20,8 +20,8 @@ func SetupRoutes(
 	r := chi.NewRouter()
 
 	// CORS configuration using chi's built-in CORS
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3001", "http://localhost:3002"},
+    r.Use(cors.Handler(cors.Options{
+        AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:8086"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Requested-With"},
 		ExposedHeaders:   []string{"Link"},

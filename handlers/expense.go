@@ -263,6 +263,9 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Calculate amount due
+	amountDue := req.Amount - req.AmountPaid
+
 	// Update expense record
 	expense.Date = date
 	expense.Category = category
@@ -271,6 +274,7 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 	expense.SupplierName = req.SupplierName
 	expense.PaymentStatus = paymentStatus
 	expense.AmountPaid = req.AmountPaid
+	expense.AmountDue = amountDue
 	if req.SupplierContact != "" {
 		expense.SupplierContact = &req.SupplierContact
 	} else {

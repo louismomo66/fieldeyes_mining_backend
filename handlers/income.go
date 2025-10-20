@@ -270,16 +270,22 @@ func (h *IncomeHandler) UpdateIncome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Calculate total amount and amount due
+	totalAmount := req.Quantity * req.PricePerUnit
+	amountDue := totalAmount - req.AmountPaid
+
 	// Update income record
 	income.Date = date
 	income.MineralType = mineralType
 	income.Quantity = req.Quantity
 	income.Unit = req.Unit
 	income.PricePerUnit = req.PricePerUnit
+	income.TotalAmount = totalAmount
 	income.CustomerName = req.CustomerName
 	income.CustomerContact = req.CustomerContact
 	income.PaymentStatus = paymentStatus
 	income.AmountPaid = req.AmountPaid
+	income.AmountDue = amountDue
 	if req.Notes != "" {
 		income.Notes = &req.Notes
 	} else {

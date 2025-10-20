@@ -29,6 +29,16 @@ start: ## Start the backend server
 	@echo "Port: $(PORT)"
 	@echo "Database: $(DB_NAME)"
 	@echo ""
+	# Ensure Docker is running and start postgres container if available
+	@docker ps >/dev/null 2>&1 && docker-compose up -d postgres || true
+	# Wait for Postgres to be ready on the configured port
+	@echo "Waiting for Postgres on $(DB_HOST):$(DB_PORT)..."
+	@i=0; until nc -z $(DB_HOST) $(DB_PORT) >/dev/null 2>&1; do \
+	  i=$$((i+1)); \
+	  if [ $$i -gt 30 ]; then echo "$(RED)Postgres not reachable on $(DB_HOST):$(DB_PORT)$(NC)"; exit 1; fi; \
+	  sleep 1; \
+	done; \
+	echo "$(GREEN)Postgres is up$(NC)";
 	DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) DB_NAME=$(DB_NAME) JWT_SECRET=$(JWT_SECRET) PORT=$(PORT) go run cmd/api/main.go cmd/api/config.go cmd/api/db.go
 
 start-bg: ## Start the backend server in background
