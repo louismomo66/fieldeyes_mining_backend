@@ -1,6 +1,8 @@
 package data
 
 import (
+	"fmt"
+
 	"gorm.io/gorm"
 )
 
@@ -86,6 +88,16 @@ func (r *IncomeRepository) GetFinancialSummary(userID uint) (*FinancialSummary, 
 	if result.Error != nil {
 		return nil, result.Error
 	}
+
+	// Debug: Check what records exist for this user
+	var debugRecords []Income
+	r.db.Where("user_id = ? AND deleted_at IS NULL", userID).Find(&debugRecords)
+	fmt.Printf("DEBUG: User %d has %d income records\n", userID, len(debugRecords))
+	for i, record := range debugRecords {
+		fmt.Printf("DEBUG: Record %d - PaymentStatus: %s, AmountDue: %.2f\n", i+1, record.PaymentStatus, record.AmountDue)
+	}
+	fmt.Printf("DEBUG: TotalReceivables calculated: %.2f\n", totalReceivables)
+
 	summary.TotalReceivables = totalReceivables
 
 	return &summary, nil

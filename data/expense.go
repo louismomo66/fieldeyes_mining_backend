@@ -138,7 +138,7 @@ func (r *ExpenseRepository) GetFinancialSummary(userID uint) (*FinancialSummary,
 	if result.Error != nil {
 		return nil, result.Error
 	}
-	summary.TotalReceivables = totalPayables // Using TotalReceivables field for payables
+	summary.TotalPayables = totalPayables
 
 	return &summary, nil
 }
