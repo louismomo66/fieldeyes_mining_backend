@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: mining_postgres
+    environment:
+      POSTGRES_DB: mining_data
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mining_network
+
+  # Redis (optional, for caching)
+  redis:
+    image: redis:7-alpine
+    container_name: mining_redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mining_network
+
+  # Mining Finance API
+  api:
+    build: .
+    container_name: mining_api
+    ports:
+      - "9006:9006"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=mining_data
+      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+      - PORT=9006
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - mining_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  mining_network:
+    driver: bridge
