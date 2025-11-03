@@ -35,11 +35,68 @@ const (
 type MineralType string
 
 const (
-	MineralGold    MineralType = "gold"
-	MineralCopper  MineralType = "copper"
-	MineralCobalt  MineralType = "cobalt"
-	MineralDiamond MineralType = "diamond"
-	MineralOther   MineralType = "other"
+	MineralGold              MineralType = "gold"
+	MineralCopper            MineralType = "copper"
+	MineralCobalt            MineralType = "cobalt"
+	MineralDiamond           MineralType = "diamond"
+	MineralIronOre           MineralType = "iron_ore"
+	MineralLead              MineralType = "lead"
+	MineralZinc              MineralType = "zinc"
+	MineralLithium           MineralType = "lithium"
+	MineralNickel            MineralType = "nickel"
+	MineralColtan            MineralType = "coltan"
+	MineralTin               MineralType = "tin"
+	MineralWolfram           MineralType = "wolfram"
+	MineralTitanium          MineralType = "titanium"
+	MineralManganese         MineralType = "manganese"
+	MineralRareEarthElements MineralType = "rare_earth_elements"
+	MineralUranium           MineralType = "uranium"
+	MineralBentonite         MineralType = "bentonite"
+	MineralDiatomite         MineralType = "diatomite"
+	MineralGraphite          MineralType = "graphite"
+	MineralGypsum            MineralType = "gypsum"
+	MineralFeldspar          MineralType = "feldspar"
+	MineralLimestone         MineralType = "limestone"
+	MineralMarble            MineralType = "marble"
+	MineralKaolin            MineralType = "kaolin"
+	MineralPhosphates        MineralType = "phosphates"
+	MineralPozzolana         MineralType = "pozzolana"
+	MineralSalt              MineralType = "salt"
+	MineralSand              MineralType = "sand"
+	MineralVermiculite       MineralType = "vermiculite"
+	MineralSilver            MineralType = "silver"
+	MineralGranite           MineralType = "granite"
+	MineralChromite          MineralType = "chromite"
+	MineralGemstones         MineralType = "gemstones"
+	MineralOther             MineralType = "other"
+)
+
+// GemstoneType represents the type of gemstone
+type GemstoneType string
+
+const (
+	GemstoneApatite    GemstoneType = "apatite"
+	GemstoneBeryl      GemstoneType = "beryl"
+	GemstoneAquamarine GemstoneType = "aquamarine"
+	GemstoneRuby       GemstoneType = "ruby"
+	GemstoneSapphire   GemstoneType = "sapphire"
+	GemstoneFlourite   GemstoneType = "flourite"
+	GemstoneGarnet     GemstoneType = "garnet"
+	GemstoneOpal       GemstoneType = "opal"
+	GemstoneQuartz     GemstoneType = "quartz"
+	GemstoneTopaz      GemstoneType = "topaz"
+	GemstoneTourmaline GemstoneType = "tourmaline"
+	GemstoneZircon     GemstoneType = "zircon"
+)
+
+// SalesType represents the type of sale
+type SalesType string
+
+const (
+	SalesTypeMineral      SalesType = "mineral"
+	SalesTypeSupply       SalesType = "supply"
+	SalesTypeConcentrates SalesType = "concentrates"
+	SalesTypeTailings     SalesType = "tailings"
 )
 
 // ExpenseCategory represents the category of expense
@@ -73,11 +130,14 @@ type User struct {
 	OTPExpiresAt *time.Time `json:"-"`
 }
 
-// Income represents an income transaction
+// Income represents an income transaction (Sales)
 type Income struct {
 	gorm.Model
 	Date            time.Time      `gorm:"not null" json:"date"`
-	MineralType     MineralType    `gorm:"type:varchar(50);not null" json:"mineral_type"`
+	ItemName        *string        `gorm:"type:varchar(255)" json:"item_name,omitempty"`
+	MineralType     MineralType    `gorm:"type:varchar(50);not null;default:'other'" json:"mineral_type"`
+	GemstoneType    *GemstoneType  `gorm:"type:varchar(50)" json:"gemstone_type,omitempty"`
+	SalesType       SalesType      `gorm:"type:varchar(20);default:'mineral'" json:"sales_type"`
 	Quantity        float64        `gorm:"not null" json:"quantity"`
 	Unit            string         `gorm:"type:varchar(20);not null" json:"unit"`
 	PricePerUnit    float64        `gorm:"not null" json:"price_per_unit"`
@@ -115,21 +175,57 @@ type Expense struct {
 	DeletedAt       gorm.DeletedAt  `gorm:"index" json:"-"`
 }
 
-// InventoryItem represents an inventory item
+// ProductionFrom represents the source of production
+type ProductionFrom string
+
+const (
+	ProductionFromMine       ProductionFrom = "mine"
+	ProductionFromProcessing ProductionFrom = "processing"
+)
+
+// ProcessingMethod represents the processing method used
+type ProcessingMethod string
+
+const (
+	ProcessingCrushing    ProcessingMethod = "crushing"
+	ProcessingMilling     ProcessingMethod = "milling"
+	ProcessingSieving     ProcessingMethod = "sieving"
+	ProcessingGrading     ProcessingMethod = "grading"
+	ProcessingSorting     ProcessingMethod = "sorting"
+	ProcessingCutting     ProcessingMethod = "cutting"
+	ProcessingDressing    ProcessingMethod = "dressing"
+	ProcessingLeaching    ProcessingMethod = "leaching"
+	ProcessingElution     ProcessingMethod = "elution"
+	ProcessingRefining    ProcessingMethod = "refining"
+	ProcessingFloatation  ProcessingMethod = "floatation"
+	ProcessingGrinding    ProcessingMethod = "grinding"
+	ProcessingScreening   ProcessingMethod = "screening"
+	ProcessingDrying      ProcessingMethod = "drying"
+	ProcessingExfoliation ProcessingMethod = "exfoliation"
+	ProcessingPolishing   ProcessingMethod = "polishing"
+	ProcessingWashing     ProcessingMethod = "washing"
+)
+
+// InventoryItem represents an inventory/production item
 type InventoryItem struct {
 	gorm.Model
-	Name          string         `gorm:"type:varchar(100);not null" json:"name"`
-	Type          string         `gorm:"type:varchar(20);not null" json:"type"` // "mineral" or "supply"
-	Quantity      float64        `gorm:"not null" json:"quantity"`
-	Unit          string         `gorm:"type:varchar(20);not null" json:"unit"`
-	MinStockLevel float64        `gorm:"not null" json:"min_stock_level"`
-	CurrentValue  float64        `gorm:"not null" json:"current_value"`
-	LastUpdated   time.Time      `gorm:"not null" json:"last_updated"`
-	UserID        uint           `gorm:"not null" json:"user_id"`
-	User          User           `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
-	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
+	Name             string            `gorm:"type:varchar(100);not null" json:"name"`
+	Type             string            `gorm:"type:varchar(20);not null" json:"type"`  // "mineral" or "supply"
+	From             *ProductionFrom   `gorm:"type:varchar(20)" json:"from,omitempty"` // "mine" or "processing"
+	PitNumber        *string           `gorm:"type:varchar(100)" json:"pit_number,omitempty"`
+	MinerName        *string           `gorm:"type:varchar(100)" json:"miner_name,omitempty"`
+	BatchNumber      *string           `gorm:"type:varchar(100)" json:"batch_number,omitempty"`
+	ProcessingMethod *ProcessingMethod `gorm:"type:varchar(50)" json:"processing_method,omitempty"`
+	Quantity         float64           `gorm:"not null" json:"quantity"`
+	Unit             string            `gorm:"type:varchar(20);not null" json:"unit"`
+	MinStockLevel    float64           `gorm:"not null" json:"min_stock_level"`
+	CurrentValue     float64           `gorm:"not null" json:"current_value"`
+	LastUpdated      time.Time         `gorm:"not null" json:"last_updated"`
+	UserID           uint              `gorm:"not null" json:"user_id"`
+	User             User              `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	CreatedAt        time.Time         `json:"created_at"`
+	UpdatedAt        time.Time         `json:"updated_at"`
+	DeletedAt        gorm.DeletedAt    `gorm:"index" json:"-"`
 }
 
 // FinancialSummary represents financial summary data
@@ -155,4 +251,24 @@ type CategoryBreakdown struct {
 	Category   string  `json:"category"`
 	Amount     float64 `json:"amount"`
 	Percentage float64 `json:"percentage"`
+}
+
+// MineSiteInfo represents mine site information
+type MineSiteInfo struct {
+	gorm.Model
+	Owner           string         `gorm:"type:varchar(255);not null" json:"owner"`
+	License         *string        `gorm:"type:varchar(100)" json:"license,omitempty"`
+	Location        string         `gorm:"type:varchar(255);not null" json:"location"`
+	Size            *float64       `gorm:"type:decimal(10,2)" json:"size,omitempty"` // hectares
+	NumberOfPits    *int           `gorm:"type:integer" json:"number_of_pits,omitempty"`
+	Commodities     *string        `gorm:"type:text" json:"commodities,omitempty"`
+	Equipment       *string        `gorm:"type:text" json:"equipment,omitempty"`
+	Employees       *int           `gorm:"type:integer" json:"employees,omitempty"`
+	EstablishedYear *int           `gorm:"type:integer" json:"established_year,omitempty"`
+	Contact         *string        `gorm:"type:varchar(255)" json:"contact,omitempty"`
+	UserID          uint           `gorm:"not null" json:"user_id"`
+	User            User           `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
 }

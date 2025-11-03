@@ -30,3 +30,6 @@ go mod tidy
 # Run the application
 echo "Starting server on port $PORT..."
 go run cmd/api/main.go
+
+
+

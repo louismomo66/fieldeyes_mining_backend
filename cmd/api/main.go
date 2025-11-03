@@ -42,6 +42,7 @@ func main() {
 		Income:    data.NewIncomeRepository(app.DB),
 		Expense:   data.NewExpenseRepository(app.DB),
 		Inventory: data.NewInventoryRepository(app.DB),
+		MineSite:  data.NewMineSiteRepository(app.DB),
 	}
 
 	// Initialize mailer (mock for development)
@@ -60,6 +61,7 @@ func main() {
 	expenseHandler := handlers.NewExpenseHandler(app.Models.Expense)
 	inventoryHandler := handlers.NewInventoryHandler(app.Models.Inventory)
 	analyticsHandler := handlers.NewAnalyticsHandler(app.Models.Income, app.Models.Expense)
+	mineSiteHandler := handlers.NewMineSiteHandler(app.Models.MineSite)
 
 	// Setup routes
 	router := routes.SetupRoutes(
@@ -68,6 +70,7 @@ func main() {
 		expenseHandler,
 		inventoryHandler,
 		analyticsHandler,
+		mineSiteHandler,
 	)
 
 	// Create server

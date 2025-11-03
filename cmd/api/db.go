@@ -23,6 +23,7 @@ func (app *Config) initDB() *gorm.DB {
 		&data.Income{},
 		&data.Expense{},
 		&data.InventoryItem{},
+		&data.MineSiteInfo{},
 	); err != nil {
 		log.Panic("failed to migrate database:", err)
 	}

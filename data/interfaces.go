@@ -59,4 +59,5 @@ type Models struct {
 	Income    IncomeInterface
 	Expense   ExpenseInterface
 	Inventory InventoryInterface
+	MineSite  MineSiteInterface
 }

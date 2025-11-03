@@ -16,12 +16,13 @@ func SetupRoutes(
 	expenseHandler *handlers.ExpenseHandler,
 	inventoryHandler *handlers.InventoryHandler,
 	analyticsHandler *handlers.AnalyticsHandler,
+	mineSiteHandler *handlers.MineSiteHandler,
 ) http.Handler {
 	r := chi.NewRouter()
 
 	// CORS configuration using chi's built-in CORS
-    r.Use(cors.Handler(cors.Options{
-        AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:8086"},
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:8086"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Requested-With"},
 		ExposedHeaders:   []string{"Link"},
@@ -93,6 +94,13 @@ func SetupRoutes(
 				r.Get("/summary", analyticsHandler.GetFinancialSummary)
 				r.Get("/monthly", analyticsHandler.GetMonthlyData)
 				r.Get("/expense-breakdown", analyticsHandler.GetExpenseCategoryBreakdown)
+			})
+
+			// Mine site info routes
+			r.Route("/minesite", func(r chi.Router) {
+				r.Get("/", mineSiteHandler.GetMineSiteInfo)
+				r.Post("/", mineSiteHandler.CreateOrUpdateMineSiteInfo)
+				r.Put("/", mineSiteHandler.CreateOrUpdateMineSiteInfo)
 			})
 
 			// Admin routes (require admin role)

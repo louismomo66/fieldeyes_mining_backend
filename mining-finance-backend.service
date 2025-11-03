@@ -1,0 +1,29 @@
+[Unit]
+Description=Mining Finance Backend API
+After=network.target
+# We'll manage dependencies within the service rather than depending on system services
+
+[Service]
+Type=simple
+User=administrator
+WorkingDirectory=/opt/mining-finance/backend/fieldeyes_mining_backend
+
+# ExecStartPre runs before the main ExecStart command
+# We'll run 'make docker-up' before 'make start'
+#ExecStartPre=/usr/bin/make docker-up
+ExecStart=/usr/bin/make start
+
+# If the service stops, make sure we also stop the containers started by 'make start'
+ExecStop=/usr/bin/make stop
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/mining-finance-backend.log
+StandardError=append:/var/log/mining-finance-backend.log
+
+# The service will use the .env file already in the directory
+# If you need to override any environment variables, you can add them here
+# Environment=VARIABLE=value
+
+[Install]
+WantedBy=multi-user.target

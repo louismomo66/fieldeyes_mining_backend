@@ -26,30 +26,40 @@ func NewIncomeHandler(incomeRepo data.IncomeInterface) *IncomeHandler {
 
 // CreateIncomeRequest represents a create income request
 type CreateIncomeRequest struct {
-	Date            string  `json:"date"`
-	MineralType     string  `json:"mineral_type"`
-	Quantity        float64 `json:"quantity"`
-	Unit            string  `json:"unit"`
-	PricePerUnit    float64 `json:"price_per_unit"`
-	CustomerName    string  `json:"customer_name"`
-	CustomerContact string  `json:"customer_contact"`
-	PaymentStatus   string  `json:"payment_status"`
-	AmountPaid      float64 `json:"amount_paid"`
-	Notes           string  `json:"notes,omitempty"`
+	Date            string   `json:"date"`
+	ItemName        *string  `json:"item_name,omitempty"` // Mineral commodity name
+	MineralType     string   `json:"mineral_type"`
+	GemstoneType    *string  `json:"gemstone_type,omitempty"` // Gemstone type if applicable
+	SalesType       *string  `json:"sales_type,omitempty"`    // "mineral", "supply", "concentrates", "tailings"
+	Quantity        float64  `json:"quantity"`
+	Unit            string   `json:"unit"`
+	PricePerUnit    float64  `json:"price_per_unit"`
+	TotalAmount     float64  `json:"total_amount"`
+	CustomerName    string   `json:"customer_name"`
+	CustomerContact string   `json:"customer_contact"`
+	PaymentStatus   string   `json:"payment_status"`
+	AmountPaid      float64  `json:"amount_paid"`
+	AmountDue       *float64 `json:"amount_due,omitempty"`
+	Notes           *string  `json:"notes,omitempty"`
 }
 
 // UpdateIncomeRequest represents an update income request
 type UpdateIncomeRequest struct {
-	Date            string  `json:"date"`
-	MineralType     string  `json:"mineral_type"`
-	Quantity        float64 `json:"quantity"`
-	Unit            string  `json:"unit"`
-	PricePerUnit    float64 `json:"price_per_unit"`
-	CustomerName    string  `json:"customer_name"`
-	CustomerContact string  `json:"customer_contact"`
-	PaymentStatus   string  `json:"payment_status"`
-	AmountPaid      float64 `json:"amount_paid"`
-	Notes           string  `json:"notes,omitempty"`
+	Date            string   `json:"date"`
+	ItemName        *string  `json:"item_name,omitempty"` // Mineral commodity name
+	MineralType     string   `json:"mineral_type"`
+	GemstoneType    *string  `json:"gemstone_type,omitempty"` // Gemstone type if applicable
+	SalesType       *string  `json:"sales_type,omitempty"`    // "mineral", "supply", "concentrates", "tailings"
+	Quantity        float64  `json:"quantity"`
+	Unit            string   `json:"unit"`
+	PricePerUnit    float64  `json:"price_per_unit"`
+	TotalAmount     float64  `json:"total_amount"`
+	CustomerName    string   `json:"customer_name"`
+	CustomerContact string   `json:"customer_contact"`
+	PaymentStatus   string   `json:"payment_status"`
+	AmountPaid      float64  `json:"amount_paid"`
+	AmountDue       *float64 `json:"amount_due,omitempty"`
+	Notes           *string  `json:"notes,omitempty"`
 }
 
 // GetAllIncomes retrieves all income records for the authenticated user
@@ -144,14 +154,8 @@ func (h *IncomeHandler) CreateIncome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate mineral type
+	// Validate mineral type (allow all mineral types)
 	mineralType := data.MineralType(req.MineralType)
-	if mineralType != data.MineralGold && mineralType != data.MineralCopper &&
-		mineralType != data.MineralCobalt && mineralType != data.MineralDiamond &&
-		mineralType != data.MineralOther {
-		utils.WriteValidationError(w, "Invalid mineral type")
-		return
-	}
 
 	// Validate payment status
 	paymentStatus := data.PaymentStatus(req.PaymentStatus)
@@ -161,21 +165,51 @@ func (h *IncomeHandler) CreateIncome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Convert GemstoneType if provided
+	var gemstoneType *data.GemstoneType
+	if req.GemstoneType != nil && *req.GemstoneType != "" {
+		gType := data.GemstoneType(*req.GemstoneType)
+		gemstoneType = &gType
+	}
+
+	// Convert SalesType if provided
+	var salesType data.SalesType = data.SalesTypeMineral // default
+	if req.SalesType != nil && *req.SalesType != "" {
+		salesType = data.SalesType(*req.SalesType)
+	}
+
+	// Calculate TotalAmount if not provided
+	totalAmount := req.TotalAmount
+	if totalAmount == 0 {
+		totalAmount = req.Quantity * req.PricePerUnit
+	}
+
+	// Calculate AmountDue if not provided
+	amountDue := req.AmountPaid
+	if req.AmountDue != nil {
+		amountDue = *req.AmountDue
+	} else {
+		amountDue = totalAmount - req.AmountPaid
+	}
+
 	// Create income record
 	income := &data.Income{
 		Date:            date,
+		ItemName:        req.ItemName,
 		MineralType:     mineralType,
+		GemstoneType:    gemstoneType,
+		SalesType:       salesType,
 		Quantity:        req.Quantity,
 		Unit:            req.Unit,
 		PricePerUnit:    req.PricePerUnit,
+		TotalAmount:     totalAmount,
 		CustomerName:    req.CustomerName,
 		CustomerContact: req.CustomerContact,
 		PaymentStatus:   paymentStatus,
 		AmountPaid:      req.AmountPaid,
+		AmountDue:       amountDue,
+		Notes:           req.Notes,
 		UserID:          userID,
-	}
-	if req.Notes != "" {
-		income.Notes = &req.Notes
 	}
 
 	incomeID, err := h.IncomeRepo.Insert(income)
@@ -253,14 +287,8 @@ func (h *IncomeHandler) UpdateIncome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate mineral type
+	// Validate mineral type (allow all mineral types)
 	mineralType := data.MineralType(req.MineralType)
-	if mineralType != data.MineralGold && mineralType != data.MineralCopper &&
-		mineralType != data.MineralCobalt && mineralType != data.MineralDiamond &&
-		mineralType != data.MineralOther {
-		utils.WriteValidationError(w, "Invalid mineral type")
-		return
-	}
 
 	// Validate payment status
 	paymentStatus := data.PaymentStatus(req.PaymentStatus)
@@ -270,27 +298,49 @@ func (h *IncomeHandler) UpdateIncome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Calculate total amount and amount due
-	totalAmount := req.Quantity * req.PricePerUnit
-	amountDue := totalAmount - req.AmountPaid
+	// Convert GemstoneType if provided
+	if req.GemstoneType != nil && *req.GemstoneType != "" {
+		gType := data.GemstoneType(*req.GemstoneType)
+		income.GemstoneType = &gType
+	} else {
+		income.GemstoneType = nil
+	}
+
+	// Convert SalesType if provided
+	if req.SalesType != nil && *req.SalesType != "" {
+		salesType := data.SalesType(*req.SalesType)
+		income.SalesType = salesType
+	}
+
+	// Calculate TotalAmount if not provided
+	totalAmount := req.TotalAmount
+	if totalAmount == 0 {
+		totalAmount = req.Quantity * req.PricePerUnit
+	}
+
+	// Calculate AmountDue if not provided
+	amountDue := req.AmountPaid
+	if req.AmountDue != nil {
+		amountDue = *req.AmountDue
+	} else {
+		amountDue = totalAmount - req.AmountPaid
+	}
 
 	// Update income record
 	income.Date = date
+	income.ItemName = req.ItemName
 	income.MineralType = mineralType
 	income.Quantity = req.Quantity
 	income.Unit = req.Unit
 	income.PricePerUnit = req.PricePerUnit
 	income.TotalAmount = totalAmount
+	income.AmountDue = amountDue
 	income.CustomerName = req.CustomerName
 	income.CustomerContact = req.CustomerContact
 	income.PaymentStatus = paymentStatus
 	income.AmountPaid = req.AmountPaid
 	income.AmountDue = amountDue
-	if req.Notes != "" {
-		income.Notes = &req.Notes
-	} else {
-		income.Notes = nil
-	}
+	income.Notes = req.Notes
 
 	err = h.IncomeRepo.Update(income)
 	if err != nil {

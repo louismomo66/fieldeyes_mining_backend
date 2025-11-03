@@ -16,7 +16,7 @@ import (
 // TestHealthEndpoint tests the health check endpoint
 func TestHealthEndpoint(t *testing.T) {
 	// Create a test router
-	router := routes.SetupRoutes(nil, nil, nil, nil, nil)
+	router := routes.SetupRoutes(nil, nil, nil, nil, nil, nil)
 
 	// Create a request
 	req, err := http.NewRequest("GET", "/health", nil)
@@ -51,7 +51,7 @@ func TestSignupEndpoint(t *testing.T) {
 	authHandler := handlers.NewAuthHandler(userRepo)
 
 	// Create a test router
-	router := routes.SetupRoutes(authHandler, nil, nil, nil, nil)
+	router := routes.SetupRoutes(authHandler, nil, nil, nil, nil, nil)
 
 	// Create signup request
 	signupReq := handlers.SignupRequest{
