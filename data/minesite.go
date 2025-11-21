@@ -45,3 +45,6 @@ func (r *MineSiteRepository) Update(info *MineSiteInfo) error {
 	result := r.db.Save(info)
 	return result.Error
 }
+
+
+

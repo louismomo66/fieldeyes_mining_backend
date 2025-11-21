@@ -53,7 +53,7 @@ func connectToDB() *gorm.DB {
 
 	dbPassword := os.Getenv("DB_PASSWORD")
 	if dbPassword == "" {
-		dbPassword = "postgres"
+		dbPassword = "miningFinanceDB_2025"
 	}
 
 	dbName := os.Getenv("DB_NAME")

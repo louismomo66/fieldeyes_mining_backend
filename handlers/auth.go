@@ -3,7 +3,9 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"mineral/data"
+	"mineral/pkg/email"
 	"mineral/pkg/middleware"
 	"mineral/pkg/utils"
 	"net/http"
@@ -12,12 +14,14 @@ import (
 // AuthHandler handles authentication-related requests
 type AuthHandler struct {
 	UserRepo data.UserInterface
+	Mailer   email.Mailer
 }
 
 // NewAuthHandler creates a new AuthHandler
-func NewAuthHandler(userRepo data.UserInterface) *AuthHandler {
+func NewAuthHandler(userRepo data.UserInterface, mailer email.Mailer) *AuthHandler {
 	return &AuthHandler{
 		UserRepo: userRepo,
+		Mailer:   mailer,
 	}
 }
 
@@ -233,10 +237,12 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In a real application, you would send the OTP via email/SMS
-	// For now, we'll just log it (remove this in production)
-	// TODO: Replace with proper logging
-	_ = otp // Suppress unused variable warning
+	// Send the OTP email concurrently so we don't block the request
+	go func(emailAddress, code string) {
+		if err := h.Mailer.SendOTP(emailAddress, code); err != nil {
+			log.Printf("Failed to send OTP to %s: %v", emailAddress, err)
+		}
+	}(req.Email, otp)
 
 	utils.WriteSuccessResponse(w, "If the email exists, an OTP has been sent", nil)
 }

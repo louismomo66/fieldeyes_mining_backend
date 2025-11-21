@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -46,7 +47,25 @@ func main() {
 	}
 
 	// Initialize mailer (mock for development)
-	app.Mailer = &email.MockMailer{}
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPortStr := os.Getenv("SMTP_PORT")
+	smtpUsername := os.Getenv("SMTP_USERNAME")
+	smtpPassword := os.Getenv("SMTP_PASSWORD")
+	smtpFrom := os.Getenv("SMTP_FROM")
+
+	if smtpHost != "" && smtpPortStr != "" && smtpUsername != "" && smtpPassword != "" && smtpFrom != "" {
+		port, err := strconv.Atoi(smtpPortStr)
+		if err != nil {
+			app.InfoLog.Printf("Invalid SMTP_PORT (%s), falling back to mock mailer", smtpPortStr)
+			app.Mailer = &email.MockMailer{}
+		} else {
+			app.InfoLog.Println("Using SMTP mailer for OTP delivery")
+			app.Mailer = email.NewSMTPMailer(smtpHost, port, smtpUsername, smtpPassword, smtpFrom)
+		}
+	} else {
+		app.InfoLog.Println("SMTP configuration incomplete, using mock mailer")
+		app.Mailer = &email.MockMailer{}
+	}
 
 	// Set JWT secret from environment
 	jwtSecret := os.Getenv("JWT_SECRET")
@@ -56,7 +75,7 @@ func main() {
 	utils.SetJWTSecret(jwtSecret)
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(app.Models.User)
+	authHandler := handlers.NewAuthHandler(app.Models.User, app.Mailer)
 	incomeHandler := handlers.NewIncomeHandler(app.Models.Income)
 	expenseHandler := handlers.NewExpenseHandler(app.Models.Expense)
 	inventoryHandler := handlers.NewInventoryHandler(app.Models.Inventory)

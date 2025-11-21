@@ -3,12 +3,12 @@ version: '3.8'
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15
     container_name: mining_postgres
     environment:
       POSTGRES_DB: mining_data
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: miningFinanceDB_2025
     ports:
       - "5433:5432"
     volumes:
@@ -20,6 +20,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: mining_redis
+    command: ["redis-server", "--requirepass", "miningFinanceRedis_2025"]
     ports:
       - "6380:6379"
     volumes:
@@ -37,9 +38,12 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      - DB_PASSWORD=miningFinanceDB_2025
       - DB_NAME=mining_data
-      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+      - JWT_SECRET=prod-mining-finance-secret-2025
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=miningFinanceRedis_2025
       - PORT=9006
     depends_on:
       - postgres

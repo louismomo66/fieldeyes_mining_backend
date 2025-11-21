@@ -4,9 +4,9 @@
 DB_HOST ?= localhost
 DB_PORT ?= 5433
 DB_USER ?= postgres
-DB_PASSWORD ?= postgres
+DB_PASSWORD ?= miningFinanceDB_2025
 DB_NAME ?= mining_data
-JWT_SECRET ?= your-super-secret-jwt-key-change-this-in-production
+JWT_SECRET ?= prod-mining-finance-secret-2025
 PORT ?= 9006
 
 # Colors for output

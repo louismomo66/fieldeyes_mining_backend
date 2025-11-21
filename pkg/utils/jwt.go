@@ -7,7 +7,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret = []byte("your-super-secret-jwt-key-change-this-in-production")
+var jwtSecret = []byte("prod-mining-finance-secret-2025")
 
 // SetJWTSecret sets the JWT secret key
 func SetJWTSecret(secret string) {

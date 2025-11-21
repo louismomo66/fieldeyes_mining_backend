@@ -131,9 +131,9 @@ The server will start on `http://localhost:8080`
 | `DB_HOST` | Database host | localhost |
 | `DB_PORT` | Database port | 5432 |
 | `DB_USER` | Database user | postgres |
-| `DB_PASSWORD` | Database password | postgres |
+| `DB_PASSWORD` | Database password | miningFinanceDB_2025 |
 | `DB_NAME` | Database name | mining_data |
-| `JWT_SECRET` | JWT signing secret | your-secret-key |
+| `JWT_SECRET` | JWT signing secret | prod-mining-finance-secret-2025 |
 | `PORT` | Server port | 8080 |
 
 ## Database Schema
@@ -186,6 +186,9 @@ docker-compose up
 ## License
 
 This project is licensed under the MIT License.
+
+
+
 
 
 

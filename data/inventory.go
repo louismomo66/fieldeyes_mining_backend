@@ -74,3 +74,4 @@ func (r *InventoryRepository) UpdateQuantity(id uint, userID uint, quantity floa
 
 
 
+
