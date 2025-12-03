@@ -77,10 +77,11 @@ func main() {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(app.Models.User, app.Mailer)
 	incomeHandler := handlers.NewIncomeHandler(app.Models.Income)
-	expenseHandler := handlers.NewExpenseHandler(app.Models.Expense)
+	expenseHandler := handlers.NewExpenseHandler(app.Models.Expense, app.Models.MineSite)
 	inventoryHandler := handlers.NewInventoryHandler(app.Models.Inventory)
 	analyticsHandler := handlers.NewAnalyticsHandler(app.Models.Income, app.Models.Expense)
 	mineSiteHandler := handlers.NewMineSiteHandler(app.Models.MineSite)
+	adminHandler := handlers.NewAdminHandler(app.Models.User, app.Models.Income, app.Models.Expense, app.Models.Inventory)
 
 	// Setup routes
 	router := routes.SetupRoutes(
@@ -90,6 +91,7 @@ func main() {
 		inventoryHandler,
 		analyticsHandler,
 		mineSiteHandler,
+		adminHandler,
 	)
 
 	// Create server

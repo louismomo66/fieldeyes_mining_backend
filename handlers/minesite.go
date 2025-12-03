@@ -80,6 +80,15 @@ func (h *MineSiteHandler) CreateOrUpdateMineSiteInfo(w http.ResponseWriter, r *h
 		utils.WriteValidationError(w, "Location is required")
 		return
 	}
+	if req.Contact == nil || *req.Contact == "" {
+		utils.WriteValidationError(w, "Contact information is required")
+		return
+	}
+	// Validate contact format (should be phone or email)
+	if !utils.ValidatePhone(*req.Contact) && !utils.ValidateEmail(*req.Contact) {
+		utils.WriteValidationError(w, "Contact must be a valid phone number or email address")
+		return
+	}
 
 	// Check if mine site info already exists
 	existingInfo, err := h.MineSiteRepo.GetByUserID(userID)

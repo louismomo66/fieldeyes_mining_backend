@@ -10,10 +10,7 @@ Group=administrator
 WorkingDirectory=/var/www/field-eyes/mining/fieldeyes_mining_backend
 
 # Environment variables (can be overridden by .env file in WorkingDirectory)
-# These are defaults - the Makefile will use .env file if present
-# Include common paths for Go, make, docker, etc.
-# Go is installed at /usr/lib/go-1.22/bin/go
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/go-1.22/bin:/usr/local/go/bin:/home/administrator/go/bin:/home/administrator/.local/bin"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin:/home/administrator/go/bin:/home/administrator/.local/bin"
 Environment="DB_HOST=localhost"
 Environment="DB_PORT=5433"
 Environment="DB_USER=postgres"
@@ -22,12 +19,11 @@ Environment="DB_NAME=mining_data"
 Environment="JWT_SECRET=prod-mining-finance-secret-2025"
 Environment="PORT=9006"
 
-# Start the backend using startup script
-# The script handles environment setup and runs make start
+# Use startup script
 ExecStart=/var/www/field-eyes/mining/fieldeyes_mining_backend/start-backend.sh
 
 # Stop the backend using make stop
-ExecStop=/bin/bash -lc 'cd /var/www/field-eyes/mining/fieldeyes_mining_backend && make stop'
+ExecStop=/bin/bash -c 'cd /var/www/field-eyes/mining/fieldeyes_mining_backend && /usr/bin/make stop || pkill -f "go run cmd/api"'
 
 # Restart configuration
 Restart=on-failure
@@ -41,8 +37,11 @@ StandardError=append:/var/log/mining-finance-backend.log
 NoNewPrivileges=true
 PrivateTmp=true
 
-# Resource limits (optional - adjust as needed)
+# Resource limits
 LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
+
+
+

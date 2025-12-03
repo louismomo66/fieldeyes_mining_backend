@@ -141,9 +141,14 @@ func (h *InventoryHandler) CreateInventoryItem(w http.ResponseWriter, r *http.Re
 		utils.WriteValidationError(w, "Minimum stock level cannot be negative")
 		return
 	}
-	if !utils.ValidateNonNegativeNumber(req.CurrentValue) {
+	// CurrentValue is optional for production records (defaults to 0 - production cost removed)
+	if req.CurrentValue < 0 {
 		utils.WriteValidationError(w, "Current value cannot be negative")
 		return
+	}
+	// Default to 0 if not provided (production cost removed)
+	if req.CurrentValue == 0 {
+		req.CurrentValue = 0
 	}
 
 	// Parse LastUpdated if provided
@@ -253,9 +258,14 @@ func (h *InventoryHandler) UpdateInventoryItem(w http.ResponseWriter, r *http.Re
 		utils.WriteValidationError(w, "Minimum stock level cannot be negative")
 		return
 	}
-	if !utils.ValidateNonNegativeNumber(req.CurrentValue) {
+	// CurrentValue is optional for production records (defaults to 0 - production cost removed)
+	if req.CurrentValue < 0 {
 		utils.WriteValidationError(w, "Current value cannot be negative")
 		return
+	}
+	// Default to 0 if not provided (production cost removed)
+	if req.CurrentValue == 0 {
+		req.CurrentValue = 0
 	}
 
 	// Parse LastUpdated if provided

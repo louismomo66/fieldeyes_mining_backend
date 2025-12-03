@@ -15,12 +15,14 @@ import (
 // ExpenseHandler handles expense-related requests
 type ExpenseHandler struct {
 	ExpenseRepo data.ExpenseInterface
+	MineSiteRepo data.MineSiteInterface
 }
 
 // NewExpenseHandler creates a new ExpenseHandler
-func NewExpenseHandler(expenseRepo data.ExpenseInterface) *ExpenseHandler {
+func NewExpenseHandler(expenseRepo data.ExpenseInterface, mineSiteRepo data.MineSiteInterface) *ExpenseHandler {
 	return &ExpenseHandler{
 		ExpenseRepo: expenseRepo,
+		MineSiteRepo: mineSiteRepo,
 	}
 }
 
@@ -181,6 +183,34 @@ func (h *ExpenseHandler) CreateExpense(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expense.ID = expenseID
+
+	// If this is an equipment expense, add it to mine site assets
+	if category == data.ExpenseEquipment {
+		mineSiteInfo, err := h.MineSiteRepo.GetByUserID(userID)
+		if err == nil && mineSiteInfo != nil {
+			// Append equipment to existing equipment list
+			currentEquipment := ""
+			if mineSiteInfo.Equipment != nil {
+				currentEquipment = *mineSiteInfo.Equipment
+			}
+			
+			equipmentEntry := req.Description
+			if req.SupplierName != "" {
+				equipmentEntry += " (Supplier: " + req.SupplierName + ")"
+			}
+			equipmentEntry += " - Amount: " + strconv.FormatFloat(req.Amount, 'f', 2, 64)
+			
+			if currentEquipment != "" {
+				currentEquipment += "\n" + equipmentEntry
+			} else {
+				currentEquipment = equipmentEntry
+			}
+			
+			mineSiteInfo.Equipment = &currentEquipment
+			h.MineSiteRepo.Update(mineSiteInfo)
+		}
+	}
+
 	utils.WriteSuccessResponse(w, "Expense record created successfully", expense)
 }
 
@@ -290,6 +320,33 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		utils.WriteInternalServerError(w, "Failed to update expense record")
 		return
+	}
+
+	// If this is an equipment expense, update mine site assets
+	if category == data.ExpenseEquipment {
+		mineSiteInfo, err := h.MineSiteRepo.GetByUserID(userID)
+		if err == nil && mineSiteInfo != nil {
+			// Append equipment to existing equipment list
+			currentEquipment := ""
+			if mineSiteInfo.Equipment != nil {
+				currentEquipment = *mineSiteInfo.Equipment
+			}
+			
+			equipmentEntry := req.Description
+			if req.SupplierName != "" {
+				equipmentEntry += " (Supplier: " + req.SupplierName + ")"
+			}
+			equipmentEntry += " - Amount: " + strconv.FormatFloat(req.Amount, 'f', 2, 64)
+			
+			if currentEquipment != "" {
+				currentEquipment += "\n" + equipmentEntry
+			} else {
+				currentEquipment = equipmentEntry
+			}
+			
+			mineSiteInfo.Equipment = &currentEquipment
+			h.MineSiteRepo.Update(mineSiteInfo)
+		}
 	}
 
 	utils.WriteSuccessResponse(w, "Expense record updated successfully", expense)

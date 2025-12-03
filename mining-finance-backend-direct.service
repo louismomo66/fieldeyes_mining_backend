@@ -1,0 +1,52 @@
+[Unit]
+Description=Mining Finance Backend API
+After=network.target docker.service
+Requires=network.target
+
+[Service]
+Type=simple
+User=administrator
+Group=administrator
+WorkingDirectory=/var/www/field-eyes/mining/fieldeyes_mining_backend
+
+# Environment variables
+# Source the user's profile to get Go and other tools in PATH
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin:/home/administrator/go/bin:/home/administrator/.local/bin"
+Environment="DB_HOST=localhost"
+Environment="DB_PORT=5433"
+Environment="DB_USER=postgres"
+Environment="DB_PASSWORD=miningFinanceDB_2025"
+Environment="DB_NAME=mining_data"
+Environment="JWT_SECRET=prod-mining-finance-secret-2025"
+Environment="PORT=9006"
+
+# Start postgres container first, then run Go directly
+ExecStartPre=/bin/bash -c 'if command -v docker &> /dev/null && [ -f docker-compose.yml ]; then cd /var/www/field-eyes/mining/fieldeyes_mining_backend && docker-compose up -d postgres || true; fi'
+ExecStartPre=/bin/bash -c 'for i in {1..30}; do if nc -z ${DB_HOST:-localhost} ${DB_PORT:-5433} 2>/dev/null; then exit 0; fi; sleep 1; done; exit 1'
+
+# Run Go directly (bypassing make)
+ExecStart=/usr/bin/go run cmd/api/main.go cmd/api/config.go cmd/api/db.go
+
+# Stop the backend
+ExecStop=/bin/bash -c 'pkill -f "go run cmd/api" || true'
+
+# Restart configuration
+Restart=on-failure
+RestartSec=10
+
+# Logging
+StandardOutput=append:/var/log/mining-finance-backend.log
+StandardError=append:/var/log/mining-finance-backend.log
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
+
+

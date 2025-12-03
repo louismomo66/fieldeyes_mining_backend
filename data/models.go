@@ -214,12 +214,13 @@ type InventoryItem struct {
 	From             *ProductionFrom   `gorm:"type:varchar(20)" json:"from,omitempty"` // "mine" or "processing"
 	PitNumber        *string           `gorm:"type:varchar(100)" json:"pit_number,omitempty"`
 	MinerName        *string           `gorm:"type:varchar(100)" json:"miner_name,omitempty"`
+	MinerSerialNumber *string          `gorm:"type:varchar(100);uniqueIndex" json:"miner_serial_number,omitempty"`
 	BatchNumber      *string           `gorm:"type:varchar(100)" json:"batch_number,omitempty"`
 	ProcessingMethod *ProcessingMethod `gorm:"type:varchar(50)" json:"processing_method,omitempty"`
 	Quantity         float64           `gorm:"not null" json:"quantity"`
 	Unit             string            `gorm:"type:varchar(20);not null" json:"unit"`
 	MinStockLevel    float64           `gorm:"not null" json:"min_stock_level"`
-	CurrentValue     float64           `gorm:"not null" json:"current_value"`
+	CurrentValue     float64           `gorm:"default:0" json:"current_value"`
 	LastUpdated      time.Time         `gorm:"not null" json:"last_updated"`
 	UserID           uint              `gorm:"not null" json:"user_id"`
 	User             User              `gorm:"foreignKey:UserID" json:"user,omitempty"`

@@ -33,8 +33,12 @@ func (r *ExpenseRepository) GetOne(id uint, userID uint) (*Expense, error) {
 
 // Insert creates a new expense record
 func (r *ExpenseRepository) Insert(expense *Expense) (uint, error) {
-	// Calculate amount due
-	expense.AmountDue = expense.Amount - expense.AmountPaid
+	// Calculate amount due (handle overpayments - set to 0 if negative)
+	amountDue := expense.Amount - expense.AmountPaid
+	if amountDue < 0 {
+		amountDue = 0
+	}
+	expense.AmountDue = amountDue
 
 	result := r.db.Create(expense)
 	return expense.ID, result.Error
@@ -42,8 +46,12 @@ func (r *ExpenseRepository) Insert(expense *Expense) (uint, error) {
 
 // Update updates an existing expense record
 func (r *ExpenseRepository) Update(expense *Expense) error {
-	// Recalculate amount due
-	expense.AmountDue = expense.Amount - expense.AmountPaid
+	// Recalculate amount due (handle overpayments - set to 0 if negative)
+	amountDue := expense.Amount - expense.AmountPaid
+	if amountDue < 0 {
+		amountDue = 0
+	}
+	expense.AmountDue = amountDue
 
 	result := r.db.Save(expense)
 	return result.Error
@@ -72,7 +80,7 @@ func (r *ExpenseRepository) GetCategoryBreakdown(userID uint) ([]*CategoryBreakd
 			category,
 			COALESCE(SUM(amount), 0) as amount
 		FROM expenses 
-		WHERE user_id = ? AND deleted_at IS NULL
+		WHERE user_id = ? AND deleted_at IS NULL AND category != 'fuel'
 		GROUP BY category
 		ORDER BY amount DESC
 	`
@@ -106,7 +114,7 @@ func (r *ExpenseRepository) GetMonthlyData(userID uint, year int) ([]*MonthlyDat
 			TO_CHAR(date, 'YYYY-MM') as month,
 			COALESCE(SUM(amount), 0) as expenses
 		FROM expenses 
-		WHERE user_id = ? AND EXTRACT(YEAR FROM date) = ?
+		WHERE user_id = ? AND EXTRACT(YEAR FROM date) = ? AND category != 'fuel'
 		GROUP BY TO_CHAR(date, 'YYYY-MM')
 		ORDER BY month
 	`
@@ -123,17 +131,17 @@ func (r *ExpenseRepository) GetMonthlyData(userID uint, year int) ([]*MonthlyDat
 func (r *ExpenseRepository) GetFinancialSummary(userID uint) (*FinancialSummary, error) {
 	var summary FinancialSummary
 
-	// Get total expenses
+	// Get total expenses (excluding fuel category)
 	var totalExpenses float64
-	result := r.db.Model(&Expense{}).Where("user_id = ? AND deleted_at IS NULL", userID).Select("COALESCE(SUM(amount), 0)").Scan(&totalExpenses)
+	result := r.db.Model(&Expense{}).Where("user_id = ? AND deleted_at IS NULL AND category != ?", userID, ExpenseFuel).Select("COALESCE(SUM(amount), 0)").Scan(&totalExpenses)
 	if result.Error != nil {
 		return nil, result.Error
 	}
 	summary.TotalExpenses = totalExpenses
 
-	// Get total payables (unpaid amounts)
+	// Get total payables (unpaid amounts, excluding fuel)
 	var totalPayables float64
-	result = r.db.Model(&Expense{}).Where("user_id = ? AND deleted_at IS NULL AND payment_status IN (?, ?)", userID, PaymentUnpaid, PaymentPartial).
+	result = r.db.Model(&Expense{}).Where("user_id = ? AND deleted_at IS NULL AND category != ? AND payment_status IN (?, ?)", userID, ExpenseFuel, PaymentUnpaid, PaymentPartial).
 		Select("COALESCE(SUM(amount_due), 0)").Scan(&totalPayables)
 	if result.Error != nil {
 		return nil, result.Error

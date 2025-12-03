@@ -17,6 +17,7 @@ func SetupRoutes(
 	inventoryHandler *handlers.InventoryHandler,
 	analyticsHandler *handlers.AnalyticsHandler,
 	mineSiteHandler *handlers.MineSiteHandler,
+	adminHandler *handlers.AdminHandler,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -106,7 +107,9 @@ func SetupRoutes(
 			// Admin routes (require admin role)
 			r.Group(func(r chi.Router) {
 				r.Use(middleware.AdminMiddleware)
-				// Add admin-specific routes here if needed
+				r.Route("/admin", func(r chi.Router) {
+					r.Get("/users", adminHandler.GetAllUsers)
+				})
 			})
 		})
 	})

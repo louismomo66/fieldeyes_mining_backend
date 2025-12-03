@@ -38,8 +38,12 @@ func (r *IncomeRepository) Insert(income *Income) (uint, error) {
 	// Calculate total amount
 	income.TotalAmount = income.Quantity * income.PricePerUnit
 
-	// Calculate amount due
-	income.AmountDue = income.TotalAmount - income.AmountPaid
+	// Calculate amount due (handle overpayments - set to 0 if negative)
+	amountDue := income.TotalAmount - income.AmountPaid
+	if amountDue < 0 {
+		amountDue = 0
+	}
+	income.AmountDue = amountDue
 
 	result := r.db.Create(income)
 	return income.ID, result.Error
@@ -47,9 +51,13 @@ func (r *IncomeRepository) Insert(income *Income) (uint, error) {
 
 // Update updates an existing income record
 func (r *IncomeRepository) Update(income *Income) error {
-	// Recalculate total amount and amount due
+	// Recalculate total amount and amount due (handle overpayments - set to 0 if negative)
 	income.TotalAmount = income.Quantity * income.PricePerUnit
-	income.AmountDue = income.TotalAmount - income.AmountPaid
+	amountDue := income.TotalAmount - income.AmountPaid
+	if amountDue < 0 {
+		amountDue = 0
+	}
+	income.AmountDue = amountDue
 
 	result := r.db.Save(income)
 	return result.Error
