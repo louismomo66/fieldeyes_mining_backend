@@ -43,7 +43,7 @@ func connectToDB() *gorm.DB {
 
 	dbPort := os.Getenv("DB_PORT")
 	if dbPort == "" {
-		dbPort = "5433"
+		dbPort = "5432"
 	}
 
 	dbUser := os.Getenv("DB_USER")
