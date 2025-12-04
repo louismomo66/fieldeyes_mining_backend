@@ -104,11 +104,17 @@ func SetupRoutes(
 				r.Put("/", mineSiteHandler.CreateOrUpdateMineSiteInfo)
 			})
 
+			// User serial number route (available to all authenticated users)
+			r.Get("/serial-number", adminHandler.GetUserSerialNumber)
+
 			// Admin routes (require admin role)
 			r.Group(func(r chi.Router) {
 				r.Use(middleware.AdminMiddleware)
 				r.Route("/admin", func(r chi.Router) {
 					r.Get("/users", adminHandler.GetAllUsers)
+					r.Get("/stats", adminHandler.GetSystemStats)
+					r.Get("/trends", adminHandler.GetSystemTrends)
+					r.Get("/category-breakdown", adminHandler.GetSystemCategoryBreakdown)
 				})
 			})
 		})

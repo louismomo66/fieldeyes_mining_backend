@@ -26,34 +26,40 @@ func NewInventoryHandler(inventoryRepo data.InventoryInterface) *InventoryHandle
 
 // CreateInventoryRequest represents a create inventory request
 type CreateInventoryRequest struct {
-	Name             string  `json:"name"`
-	Type             string  `json:"type"`
-	From             *string `json:"from,omitempty"` // "mine" or "processing"
-	PitNumber        *string `json:"pit_number,omitempty"`
-	MinerName        *string `json:"miner_name,omitempty"`
-	BatchNumber      *string `json:"batch_number,omitempty"`
-	ProcessingMethod *string `json:"processing_method,omitempty"`
-	Quantity         float64 `json:"quantity"`
-	Unit             string  `json:"unit"`
-	MinStockLevel    float64 `json:"min_stock_level"`
-	CurrentValue     float64 `json:"current_value"`
-	LastUpdated      *string `json:"last_updated,omitempty"` // Date string for production records
+	Name             string   `json:"name"`
+	Type             string   `json:"type"`
+	From             *string  `json:"from,omitempty"` // "mine" or "processing"
+	PitNumber        *string  `json:"pit_number,omitempty"`
+	MinerName        *string  `json:"miner_name,omitempty"`
+	MinerSerialNumber *string `json:"miner_serial_number,omitempty"`
+	BatchNumber      *string  `json:"batch_number,omitempty"`
+	ProcessingMethod *string  `json:"processing_method,omitempty"`
+	Product          *string  `json:"product,omitempty"` // "ore", "concentrate", "metal", "rough", "cut", "polished", "faceted", "other"
+	GemstoneType     *string  `json:"gemstone_type,omitempty"`
+	Quantity         float64  `json:"quantity"`
+	Unit             string   `json:"unit"`
+	MinStockLevel    float64  `json:"min_stock_level"`
+	CurrentValue     float64  `json:"current_value"`
+	LastUpdated      *string  `json:"last_updated,omitempty"` // Date string for production records
 }
 
 // UpdateInventoryRequest represents an update inventory request
 type UpdateInventoryRequest struct {
-	Name             string  `json:"name"`
-	Type             string  `json:"type"`
-	From             *string `json:"from,omitempty"` // "mine" or "processing"
-	PitNumber        *string `json:"pit_number,omitempty"`
-	MinerName        *string `json:"miner_name,omitempty"`
-	BatchNumber      *string `json:"batch_number,omitempty"`
-	ProcessingMethod *string `json:"processing_method,omitempty"`
-	Quantity         float64 `json:"quantity"`
-	Unit             string  `json:"unit"`
-	MinStockLevel    float64 `json:"min_stock_level"`
-	CurrentValue     float64 `json:"current_value"`
-	LastUpdated      *string `json:"last_updated,omitempty"` // Date string for production records
+	Name             string   `json:"name"`
+	Type             string   `json:"type"`
+	From             *string  `json:"from,omitempty"` // "mine" or "processing"
+	PitNumber        *string  `json:"pit_number,omitempty"`
+	MinerName        *string  `json:"miner_name,omitempty"`
+	MinerSerialNumber *string `json:"miner_serial_number,omitempty"`
+	BatchNumber      *string  `json:"batch_number,omitempty"`
+	ProcessingMethod *string  `json:"processing_method,omitempty"`
+	Product          *string  `json:"product,omitempty"` // "ore", "concentrate", "metal", "rough", "cut", "polished", "faceted", "other"
+	GemstoneType     *string  `json:"gemstone_type,omitempty"`
+	Quantity         float64  `json:"quantity"`
+	Unit             string   `json:"unit"`
+	MinStockLevel    float64  `json:"min_stock_level"`
+	CurrentValue     float64  `json:"current_value"`
+	LastUpdated      *string  `json:"last_updated,omitempty"` // Date string for production records
 }
 
 // UpdateQuantityRequest represents an update quantity request
@@ -178,6 +184,20 @@ func (h *InventoryHandler) CreateInventoryItem(w http.ResponseWriter, r *http.Re
 		processingMethod = &methodVal
 	}
 
+	// Convert Product string to ProductType
+	var product *data.ProductType
+	if req.Product != nil && *req.Product != "" {
+		productVal := data.ProductType(*req.Product)
+		product = &productVal
+	}
+
+	// Convert GemstoneType string to GemstoneType
+	var gemstoneType *data.GemstoneType
+	if req.GemstoneType != nil && *req.GemstoneType != "" {
+		gemstoneVal := data.GemstoneType(*req.GemstoneType)
+		gemstoneType = &gemstoneVal
+	}
+
 	// Create inventory item
 	item := &data.InventoryItem{
 		Name:             req.Name,
@@ -185,8 +205,11 @@ func (h *InventoryHandler) CreateInventoryItem(w http.ResponseWriter, r *http.Re
 		From:             from,
 		PitNumber:        req.PitNumber,
 		MinerName:        req.MinerName,
+		MinerSerialNumber: req.MinerSerialNumber,
 		BatchNumber:      req.BatchNumber,
 		ProcessingMethod: processingMethod,
+		Product:          product,
+		GemstoneType:     gemstoneType,
 		Quantity:         req.Quantity,
 		Unit:             req.Unit,
 		MinStockLevel:    req.MinStockLevel,
@@ -292,11 +315,28 @@ func (h *InventoryHandler) UpdateInventoryItem(w http.ResponseWriter, r *http.Re
 		item.ProcessingMethod = nil
 	}
 
+	// Convert Product string to ProductType
+	if req.Product != nil && *req.Product != "" {
+		productVal := data.ProductType(*req.Product)
+		item.Product = &productVal
+	} else {
+		item.Product = nil
+	}
+
+	// Convert GemstoneType string to GemstoneType
+	if req.GemstoneType != nil && *req.GemstoneType != "" {
+		gemstoneVal := data.GemstoneType(*req.GemstoneType)
+		item.GemstoneType = &gemstoneVal
+	} else {
+		item.GemstoneType = nil
+	}
+
 	// Update inventory item
 	item.Name = req.Name
 	item.Type = req.Type
 	item.PitNumber = req.PitNumber
 	item.MinerName = req.MinerName
+	item.MinerSerialNumber = req.MinerSerialNumber
 	item.BatchNumber = req.BatchNumber
 	item.Quantity = req.Quantity
 	item.Unit = req.Unit

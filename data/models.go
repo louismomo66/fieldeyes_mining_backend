@@ -87,6 +87,19 @@ const (
 	GemstoneTopaz      GemstoneType = "topaz"
 	GemstoneTourmaline GemstoneType = "tourmaline"
 	GemstoneZircon     GemstoneType = "zircon"
+	GemstonePearl      GemstoneType = "pearl"
+	GemstoneAmber      GemstoneType = "amber"
+	GemstoneKyanite    GemstoneType = "kyanite"
+	GemstoneCoral      GemstoneType = "coral"
+	GemstoneJade       GemstoneType = "jade"
+	GemstoneMalachite  GemstoneType = "malachite"
+	GemstoneOnyx       GemstoneType = "onyx"
+	GemstonePeridot    GemstoneType = "peridot"
+	GemstoneTurquoise  GemstoneType = "turquoise"
+	GemstoneDiamond    GemstoneType = "diamond"
+	GemstoneAmethyst   GemstoneType = "amethyst"
+	GemstoneEmerald    GemstoneType = "emerald"
+	GemstoneOther      GemstoneType = "other"
 )
 
 // SalesType represents the type of sale
@@ -106,7 +119,6 @@ const (
 	ExpenseEquipment   ExpenseCategory = "equipment"
 	ExpenseLabor       ExpenseCategory = "labor"
 	ExpenseChemicals   ExpenseCategory = "chemicals"
-	ExpenseFuel        ExpenseCategory = "fuel"
 	ExpenseMaintenance ExpenseCategory = "maintenance"
 	ExpenseTransport   ExpenseCategory = "transport"
 	ExpenseOther       ExpenseCategory = "other"
@@ -161,6 +173,8 @@ type Expense struct {
 	Date            time.Time       `gorm:"not null" json:"date"`
 	Category        ExpenseCategory `gorm:"type:varchar(50);not null" json:"category"`
 	Description     string          `gorm:"type:varchar(255);not null" json:"description"`
+	Quantity        *float64        `gorm:"type:decimal(10,2)" json:"quantity,omitempty"`
+	Unit            *string         `gorm:"type:varchar(50)" json:"unit,omitempty"`
 	Amount          float64         `gorm:"not null" json:"amount"`
 	SupplierName    string          `gorm:"type:varchar(100);not null" json:"supplier_name"`
 	SupplierContact *string         `gorm:"type:varchar(100)" json:"supplier_contact,omitempty"`
@@ -206,6 +220,20 @@ const (
 	ProcessingWashing     ProcessingMethod = "washing"
 )
 
+// ProductType represents the type of product
+type ProductType string
+
+const (
+	ProductOre        ProductType = "ore"
+	ProductConcentrate ProductType = "concentrate"
+	ProductMetal      ProductType = "metal"
+	ProductRough      ProductType = "rough"
+	ProductCut        ProductType = "cut"
+	ProductPolished   ProductType = "polished"
+	ProductFaceted    ProductType = "faceted"
+	ProductOther      ProductType = "other"
+)
+
 // InventoryItem represents an inventory/production item
 type InventoryItem struct {
 	gorm.Model
@@ -217,6 +245,8 @@ type InventoryItem struct {
 	MinerSerialNumber *string          `gorm:"type:varchar(100);uniqueIndex" json:"miner_serial_number,omitempty"`
 	BatchNumber      *string           `gorm:"type:varchar(100)" json:"batch_number,omitempty"`
 	ProcessingMethod *ProcessingMethod `gorm:"type:varchar(50)" json:"processing_method,omitempty"`
+	Product          *ProductType      `gorm:"type:varchar(50)" json:"product,omitempty"`
+	GemstoneType     *GemstoneType     `gorm:"type:varchar(50)" json:"gemstone_type,omitempty"`
 	Quantity         float64           `gorm:"not null" json:"quantity"`
 	Unit             string            `gorm:"type:varchar(20);not null" json:"unit"`
 	MinStockLevel    float64           `gorm:"not null" json:"min_stock_level"`

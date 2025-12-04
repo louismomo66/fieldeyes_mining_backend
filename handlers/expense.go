@@ -28,28 +28,32 @@ func NewExpenseHandler(expenseRepo data.ExpenseInterface, mineSiteRepo data.Mine
 
 // CreateExpenseRequest represents a create expense request
 type CreateExpenseRequest struct {
-	Date            string  `json:"date"`
-	Category        string  `json:"category"`
-	Description     string  `json:"description"`
-	Amount          float64 `json:"amount"`
-	SupplierName    string  `json:"supplier_name"`
-	SupplierContact string  `json:"supplier_contact,omitempty"`
-	PaymentStatus   string  `json:"payment_status"`
-	AmountPaid      float64 `json:"amount_paid"`
-	Notes           string  `json:"notes,omitempty"`
+	Date            string   `json:"date"`
+	Category        string   `json:"category"`
+	Description     string   `json:"description"`
+	Quantity        *float64 `json:"quantity,omitempty"`
+	Unit            *string  `json:"unit,omitempty"`
+	Amount          float64  `json:"amount"`
+	SupplierName    string   `json:"supplier_name"`
+	SupplierContact string   `json:"supplier_contact,omitempty"`
+	PaymentStatus   string   `json:"payment_status"`
+	AmountPaid      float64  `json:"amount_paid"`
+	Notes           string   `json:"notes,omitempty"`
 }
 
 // UpdateExpenseRequest represents an update expense request
 type UpdateExpenseRequest struct {
-	Date            string  `json:"date"`
-	Category        string  `json:"category"`
-	Description     string  `json:"description"`
-	Amount          float64 `json:"amount"`
-	SupplierName    string  `json:"supplier_name"`
-	SupplierContact string  `json:"supplier_contact,omitempty"`
-	PaymentStatus   string  `json:"payment_status"`
-	AmountPaid      float64 `json:"amount_paid"`
-	Notes           string  `json:"notes,omitempty"`
+	Date            string   `json:"date"`
+	Category        string   `json:"category"`
+	Description     string   `json:"description"`
+	Quantity        *float64 `json:"quantity,omitempty"`
+	Unit            *string  `json:"unit,omitempty"`
+	Amount          float64  `json:"amount"`
+	SupplierName    string   `json:"supplier_name"`
+	SupplierContact string   `json:"supplier_contact,omitempty"`
+	PaymentStatus   string   `json:"payment_status"`
+	AmountPaid      float64  `json:"amount_paid"`
+	Notes           string   `json:"notes,omitempty"`
 }
 
 // GetAllExpenses retrieves all expense records for the authenticated user
@@ -143,7 +147,7 @@ func (h *ExpenseHandler) CreateExpense(w http.ResponseWriter, r *http.Request) {
 	// Validate category
 	category := data.ExpenseCategory(req.Category)
 	if category != data.ExpenseEquipment && category != data.ExpenseLabor &&
-		category != data.ExpenseChemicals && category != data.ExpenseFuel &&
+		category != data.ExpenseChemicals &&
 		category != data.ExpenseMaintenance && category != data.ExpenseTransport &&
 		category != data.ExpenseOther {
 		utils.WriteValidationError(w, "Invalid expense category")
@@ -163,6 +167,8 @@ func (h *ExpenseHandler) CreateExpense(w http.ResponseWriter, r *http.Request) {
 		Date:          date,
 		Category:      category,
 		Description:   req.Description,
+		Quantity:      req.Quantity,
+		Unit:          req.Unit,
 		Amount:        req.Amount,
 		SupplierName:  req.SupplierName,
 		PaymentStatus: paymentStatus,
@@ -278,7 +284,7 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 	// Validate category
 	category := data.ExpenseCategory(req.Category)
 	if category != data.ExpenseEquipment && category != data.ExpenseLabor &&
-		category != data.ExpenseChemicals && category != data.ExpenseFuel &&
+		category != data.ExpenseChemicals &&
 		category != data.ExpenseMaintenance && category != data.ExpenseTransport &&
 		category != data.ExpenseOther {
 		utils.WriteValidationError(w, "Invalid expense category")
@@ -300,6 +306,8 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 	expense.Date = date
 	expense.Category = category
 	expense.Description = req.Description
+	expense.Quantity = req.Quantity
+	expense.Unit = req.Unit
 	expense.Amount = req.Amount
 	expense.SupplierName = req.SupplierName
 	expense.PaymentStatus = paymentStatus

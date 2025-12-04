@@ -131,17 +131,17 @@ func (r *ExpenseRepository) GetMonthlyData(userID uint, year int) ([]*MonthlyDat
 func (r *ExpenseRepository) GetFinancialSummary(userID uint) (*FinancialSummary, error) {
 	var summary FinancialSummary
 
-	// Get total expenses (excluding fuel category)
+	// Get total expenses (excluding fuel category if any exists)
 	var totalExpenses float64
-	result := r.db.Model(&Expense{}).Where("user_id = ? AND deleted_at IS NULL AND category != ?", userID, ExpenseFuel).Select("COALESCE(SUM(amount), 0)").Scan(&totalExpenses)
+	result := r.db.Model(&Expense{}).Where("user_id = ? AND deleted_at IS NULL AND category != ?", userID, "fuel").Select("COALESCE(SUM(amount), 0)").Scan(&totalExpenses)
 	if result.Error != nil {
 		return nil, result.Error
 	}
 	summary.TotalExpenses = totalExpenses
 
-	// Get total payables (unpaid amounts, excluding fuel)
+	// Get total payables (unpaid amounts, excluding fuel if any exists)
 	var totalPayables float64
-	result = r.db.Model(&Expense{}).Where("user_id = ? AND deleted_at IS NULL AND category != ? AND payment_status IN (?, ?)", userID, ExpenseFuel, PaymentUnpaid, PaymentPartial).
+	result = r.db.Model(&Expense{}).Where("user_id = ? AND deleted_at IS NULL AND category != ? AND payment_status IN (?, ?)", userID, "fuel", PaymentUnpaid, PaymentPartial).
 		Select("COALESCE(SUM(amount_due), 0)").Scan(&totalPayables)
 	if result.Error != nil {
 		return nil, result.Error
