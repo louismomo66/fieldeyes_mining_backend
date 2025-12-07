@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/smtp"
+	"time"
 )
 
 // Mailer interface for sending emails
@@ -51,5 +52,17 @@ func (m *SMTPMailer) SendOTP(email, otp string) error {
 
 	addr := fmt.Sprintf("%s:%d", m.host, m.port)
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
-	return smtp.SendMail(addr, auth, m.from, []string{email}, []byte(msg))
+	
+	// Use a channel to implement timeout
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- smtp.SendMail(addr, auth, m.from, []string{email}, []byte(msg))
+	}()
+	
+	select {
+	case err := <-errChan:
+		return err
+	case <-time.After(10 * time.Second):
+		return fmt.Errorf("SMTP timeout: failed to send email within 10 seconds")
+	}
 }

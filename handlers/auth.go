@@ -73,13 +73,20 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// Get user by email
 	user, err := h.UserRepo.GetByEmail(req.Email)
 	if err != nil {
+		log.Printf("Login failed: user not found for email %s: %v", req.Email, err)
 		utils.WriteUnauthorizedError(w, "Invalid email or password")
 		return
 	}
 
 	// Check password
 	valid, err := h.UserRepo.PasswordMatches(user, req.Password)
-	if err != nil || !valid {
+	if err != nil {
+		log.Printf("Login failed: password check error for email %s: %v", req.Email, err)
+		utils.WriteUnauthorizedError(w, "Invalid email or password")
+		return
+	}
+	if !valid {
+		log.Printf("Login failed: password mismatch for email %s", req.Email)
 		utils.WriteUnauthorizedError(w, "Invalid email or password")
 		return
 	}
@@ -239,8 +246,17 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 
 	// Send the OTP email concurrently so we don't block the request
 	go func(emailAddress, code string) {
-		if err := h.Mailer.SendOTP(emailAddress, code); err != nil {
-			log.Printf("Failed to send OTP to %s: %v", emailAddress, err)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic in OTP email goroutine: %v", r)
+			}
+		}()
+		if h.Mailer != nil {
+			if err := h.Mailer.SendOTP(emailAddress, code); err != nil {
+				log.Printf("Failed to send OTP to %s: %v", emailAddress, err)
+			}
+		} else {
+			log.Printf("Mailer is nil, cannot send OTP to %s", emailAddress)
 		}
 	}(req.Email, otp)
 

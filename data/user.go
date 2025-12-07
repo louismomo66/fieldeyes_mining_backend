@@ -43,6 +43,9 @@ func (u *UserRepository) GetByEmail(email string) (*User, error) {
 	var user User
 	result := u.db.Where("email = ?", email).First(&user)
 	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("user not found")
+		}
 		return nil, result.Error
 	}
 	return &user, nil

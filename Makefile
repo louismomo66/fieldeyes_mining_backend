@@ -23,7 +23,7 @@ help: ## Show this help message
 	@echo "Available commands:"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-start: ## Start the backend server
+start: build ## Start the backend server using pre-built binary
 	@echo "$(GREEN)Starting backend server...$(NC)"
 	@echo "Database: $(DB_HOST):$(DB_PORT)"
 	@echo "Port: $(PORT)"
@@ -39,25 +39,29 @@ start: ## Start the backend server
 	  sleep 1; \
 	done; \
 	echo "$(GREEN)Postgres is up$(NC)";
-	DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) DB_NAME=$(DB_NAME) JWT_SECRET=$(JWT_SECRET) PORT=$(PORT) go run cmd/api/main.go cmd/api/config.go cmd/api/db.go
+	@echo "$(GREEN)Starting binary...$(NC)"
+	@DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) DB_NAME=$(DB_NAME) JWT_SECRET=$(JWT_SECRET) PORT=$(PORT) ./bin/api
 
-start-bg: ## Start the backend server in background
+start-bg: build ## Start the backend server in background using pre-built binary
 	@echo "$(GREEN)Starting backend server in background...$(NC)"
 	@echo "Database: $(DB_HOST):$(DB_PORT)"
 	@echo "Port: $(PORT)"
 	@echo "Database: $(DB_NAME)"
 	@echo ""
-	DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) DB_NAME=$(DB_NAME) JWT_SECRET=$(JWT_SECRET) PORT=$(PORT) go run cmd/api/main.go cmd/api/config.go cmd/api/db.go &
+	@echo "$(GREEN)Starting binary in background...$(NC)"
+	@DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) DB_NAME=$(DB_NAME) JWT_SECRET=$(JWT_SECRET) PORT=$(PORT) ./bin/api &
 
 stop: ## Stop the backend server
 	@echo "$(RED)Stopping backend server...$(NC)"
-	@pkill -f "go run cmd/api" || echo "No backend process found"
+	@pkill -f "./bin/api" || pkill -f "bin/api" || echo "No backend process found"
 
 restart: stop start ## Restart the backend server
 
 build: ## Build the backend binary
 	@echo "$(GREEN)Building backend binary...$(NC)"
-	@go build -o bin/api cmd/api/main.go cmd/api/config.go cmd/api/db.go
+	@mkdir -p bin
+	@go build -ldflags="-s -w" -o bin/api cmd/api/main.go cmd/api/config.go cmd/api/db.go
+	@chmod +x bin/api
 	@echo "$(GREEN)Binary built: bin/api$(NC)"
 
 run-binary: build ## Build and run the binary
@@ -92,7 +96,7 @@ docker-logs: ## Show Docker container logs
 
 logs: ## Show backend logs (if running in background)
 	@echo "$(GREEN)Backend logs:$(NC)"
-	@ps aux | grep "go run cmd/api" | grep -v grep || echo "Backend not running"
+	@ps aux | grep -E "(bin/api|cmd/api)" | grep -v grep || echo "Backend not running"
 
 dev: docker-up start ## Start development environment (Docker + Backend)
 
