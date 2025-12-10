@@ -36,7 +36,7 @@ func NewAdminHandler(
 // UserCategory represents a user with their category
 type UserCategory struct {
 	User         *data.User `json:"user"`
-	Category     string     `json:"category"` // "miner", "buyer", "seller", or "unknown"
+	Category     string     `json:"category"`      // "miner", "buyer", "seller", or "unknown"
 	SerialNumber string     `json:"serial_number"` // Serial number based on signup date and user ID
 }
 
@@ -134,17 +134,17 @@ func (h *AdminHandler) GetUserSerialNumber(w http.ResponseWriter, r *http.Reques
 
 // SystemStats represents system-wide statistics
 type SystemStats struct {
-	TotalUsers        int     `json:"total_users"`
-	TotalMiners       int     `json:"total_miners"`
-	TotalBuyers       int     `json:"total_buyers"`
-	TotalSellers      int     `json:"total_sellers"`
-	TotalIncome       float64 `json:"total_income"`
-	TotalExpenses     float64 `json:"total_expenses"`
-	TotalProfit       float64 `json:"total_profit"`
-	TotalProduction   float64 `json:"total_production"`
-	TotalReceivables  float64 `json:"total_receivables"`
-	TotalPayables     float64 `json:"total_payables"`
-	ActiveUsers       int     `json:"active_users"`
+	TotalUsers       int     `json:"total_users"`
+	TotalMiners      int     `json:"total_miners"`
+	TotalBuyers      int     `json:"total_buyers"`
+	TotalSellers     int     `json:"total_sellers"`
+	TotalIncome      float64 `json:"total_income"`
+	TotalExpenses    float64 `json:"total_expenses"`
+	TotalProfit      float64 `json:"total_profit"`
+	TotalProduction  float64 `json:"total_production"`
+	TotalReceivables float64 `json:"total_receivables"`
+	TotalPayables    float64 `json:"total_payables"`
+	ActiveUsers      int     `json:"active_users"`
 }
 
 // GetSystemStats retrieves system-wide statistics for admin
@@ -228,11 +228,11 @@ func (h *AdminHandler) GetSystemStats(w http.ResponseWriter, r *http.Request) {
 
 // MonthlyTrend represents monthly trend data
 type MonthlyTrend struct {
-	Month     string  `json:"month"`
-	Income    float64 `json:"income"`
-	Expenses  float64 `json:"expenses"`
-	Profit    float64 `json:"profit"`
-	Users     int     `json:"users"`
+	Month      string  `json:"month"`
+	Income     float64 `json:"income"`
+	Expenses   float64 `json:"expenses"`
+	Profit     float64 `json:"profit"`
+	Users      int     `json:"users"`
 	Production float64 `json:"production"`
 }
 
@@ -340,9 +340,9 @@ func (h *AdminHandler) GetSystemTrends(w http.ResponseWriter, r *http.Request) {
 
 // CategoryBreakdown represents category breakdown for admin
 type CategoryBreakdown struct {
-	Category string  `json:"category"`
-	Amount   float64 `json:"amount"`
-	Count    int     `json:"count"`
+	Category   string  `json:"category"`
+	Amount     float64 `json:"amount"`
+	Count      int     `json:"count"`
 	Percentage float64 `json:"percentage"`
 }
 
@@ -380,13 +380,144 @@ func (h *AdminHandler) GetSystemCategoryBreakdown(w http.ResponseWriter, r *http
 			percentage = (amount / totalAmount) * 100
 		}
 		breakdown = append(breakdown, CategoryBreakdown{
-			Category:    category,
-			Amount:      amount,
-			Count:       categoryCounts[category],
-			Percentage:  percentage,
+			Category:   category,
+			Amount:     amount,
+			Count:      categoryCounts[category],
+			Percentage: percentage,
 		})
 	}
 
 	utils.WriteSuccessResponse(w, "Category breakdown retrieved successfully", breakdown)
 }
 
+// DailyUsage represents usage statistics for a single day
+type DailyUsage struct {
+	Date            string  `json:"date"`
+	ActiveUsers     int     `json:"active_users"`
+	NewUsers        int     `json:"new_users"`
+	TotalIncome     float64 `json:"total_income"`
+	TotalExpenses   float64 `json:"total_expenses"`
+	IncomeCount     int     `json:"income_count"`
+	ExpenseCount    int     `json:"expense_count"`
+	ProductionCount int     `json:"production_count"`
+}
+
+// GetDailyUsage retrieves daily platform usage statistics
+func (h *AdminHandler) GetDailyUsage(w http.ResponseWriter, r *http.Request) {
+	// Get date range from query parameters (default: last 30 days)
+	startDateStr := r.URL.Query().Get("start_date")
+	endDateStr := r.URL.Query().Get("end_date")
+
+	var startDate, endDate time.Time
+	if startDateStr == "" || endDateStr == "" {
+		// Default to last 30 days
+		endDate = time.Now()
+		startDate = endDate.AddDate(0, 0, -30)
+	} else {
+		var err error
+		startDate, err = time.Parse("2006-01-02", startDateStr)
+		if err != nil {
+			utils.WriteValidationError(w, "Invalid start_date format. Use YYYY-MM-DD")
+			return
+		}
+		endDate, err = time.Parse("2006-01-02", endDateStr)
+		if err != nil {
+			utils.WriteValidationError(w, "Invalid end_date format. Use YYYY-MM-DD")
+			return
+		}
+	}
+
+	// Get all users
+	users, err := h.UserRepo.GetAll()
+	if err != nil {
+		utils.WriteInternalServerError(w, "Failed to retrieve users")
+		return
+	}
+
+	// Initialize daily data map
+	dailyData := make(map[string]*DailyUsage)
+	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+		dateStr := d.Format("2006-01-02")
+		dailyData[dateStr] = &DailyUsage{
+			Date: dateStr,
+		}
+	}
+
+	// Track active users per day
+	dailyActiveUsers := make(map[string]map[uint]bool)
+
+	// Count new user signups per day
+	for _, user := range users {
+		signupDate := user.CreatedAt.Format("2006-01-02")
+		if data, exists := dailyData[signupDate]; exists {
+			data.NewUsers++
+		}
+	}
+
+	// Aggregate data from all users
+	for _, user := range users {
+		// Get income data
+		incomes, _ := h.IncomeRepo.GetAll(user.ID)
+		for _, income := range incomes {
+			dateStr := income.Date.Format("2006-01-02")
+			if data, exists := dailyData[dateStr]; exists {
+				data.TotalIncome += income.TotalAmount
+				data.IncomeCount++
+				if dailyActiveUsers[dateStr] == nil {
+					dailyActiveUsers[dateStr] = make(map[uint]bool)
+				}
+				dailyActiveUsers[dateStr][user.ID] = true
+			}
+		}
+
+		// Get expense data
+		expenses, _ := h.ExpenseRepo.GetAll(user.ID)
+		for _, expense := range expenses {
+			dateStr := expense.Date.Format("2006-01-02")
+			if data, exists := dailyData[dateStr]; exists {
+				data.TotalExpenses += expense.Amount
+				data.ExpenseCount++
+				if dailyActiveUsers[dateStr] == nil {
+					dailyActiveUsers[dateStr] = make(map[uint]bool)
+				}
+				dailyActiveUsers[dateStr][user.ID] = true
+			}
+		}
+
+		// Get production data
+		inventory, _ := h.InventoryRepo.GetAll(user.ID)
+		for _, item := range inventory {
+			// Use Date if available, otherwise LastUpdated
+			var itemDate time.Time
+			if item.Date != nil {
+				itemDate = *item.Date
+			} else {
+				itemDate = item.LastUpdated
+			}
+			dateStr := itemDate.Format("2006-01-02")
+			if data, exists := dailyData[dateStr]; exists {
+				data.ProductionCount++
+				if dailyActiveUsers[dateStr] == nil {
+					dailyActiveUsers[dateStr] = make(map[uint]bool)
+				}
+				dailyActiveUsers[dateStr][user.ID] = true
+			}
+		}
+	}
+
+	// Set active user counts
+	for dateStr, userMap := range dailyActiveUsers {
+		if data, exists := dailyData[dateStr]; exists {
+			data.ActiveUsers = len(userMap)
+		}
+	}
+
+	// Convert to sorted slice
+	var result []*DailyUsage
+	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+		dateStr := d.Format("2006-01-02")
+		result = append(result, dailyData[dateStr])
+	}
+
+	utils.WriteSuccessResponse(w, "Daily usage retrieved successfully", result)
+}

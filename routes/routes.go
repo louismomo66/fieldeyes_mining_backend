@@ -115,6 +115,7 @@ func SetupRoutes(
 					r.Get("/stats", adminHandler.GetSystemStats)
 					r.Get("/trends", adminHandler.GetSystemTrends)
 					r.Get("/category-breakdown", adminHandler.GetSystemCategoryBreakdown)
+					r.Get("/daily-usage", adminHandler.GetDailyUsage)
 				})
 			})
 		})
