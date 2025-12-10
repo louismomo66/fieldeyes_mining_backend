@@ -26,40 +26,42 @@ func NewInventoryHandler(inventoryRepo data.InventoryInterface) *InventoryHandle
 
 // CreateInventoryRequest represents a create inventory request
 type CreateInventoryRequest struct {
-	Name             string   `json:"name"`
-	Type             string   `json:"type"`
-	From             *string  `json:"from,omitempty"` // "mine" or "processing"
-	PitNumber        *string  `json:"pit_number,omitempty"`
-	MinerName        *string  `json:"miner_name,omitempty"`
+	Name              string  `json:"name"`
+	Type              string  `json:"type"`
+	Date              *string `json:"date,omitempty"` // Production date set by user
+	From              *string `json:"from,omitempty"` // "mine" or "processing"
+	PitNumber         *string `json:"pit_number,omitempty"`
+	MinerName         *string `json:"miner_name,omitempty"`
 	MinerSerialNumber *string `json:"miner_serial_number,omitempty"`
-	BatchNumber      *string  `json:"batch_number,omitempty"`
-	ProcessingMethod *string  `json:"processing_method,omitempty"`
-	Product          *string  `json:"product,omitempty"` // "ore", "concentrate", "metal", "rough", "cut", "polished", "faceted", "other"
-	GemstoneType     *string  `json:"gemstone_type,omitempty"`
-	Quantity         float64  `json:"quantity"`
-	Unit             string   `json:"unit"`
-	MinStockLevel    float64  `json:"min_stock_level"`
-	CurrentValue     float64  `json:"current_value"`
-	LastUpdated      *string  `json:"last_updated,omitempty"` // Date string for production records
+	BatchNumber       *string `json:"batch_number,omitempty"`
+	ProcessingMethod  *string `json:"processing_method,omitempty"`
+	Product           *string `json:"product,omitempty"` // "ore", "concentrate", "metal", "rough", "cut", "polished", "faceted", "other"
+	GemstoneType      *string `json:"gemstone_type,omitempty"`
+	Quantity          float64 `json:"quantity"`
+	Unit              string  `json:"unit"`
+	MinStockLevel     float64 `json:"min_stock_level"`
+	CurrentValue      float64 `json:"current_value"`
+	LastUpdated       *string `json:"last_updated,omitempty"` // Auto-generated timestamp
 }
 
 // UpdateInventoryRequest represents an update inventory request
 type UpdateInventoryRequest struct {
-	Name             string   `json:"name"`
-	Type             string   `json:"type"`
-	From             *string  `json:"from,omitempty"` // "mine" or "processing"
-	PitNumber        *string  `json:"pit_number,omitempty"`
-	MinerName        *string  `json:"miner_name,omitempty"`
+	Name              string  `json:"name"`
+	Type              string  `json:"type"`
+	Date              *string `json:"date,omitempty"` // Production date set by user
+	From              *string `json:"from,omitempty"` // "mine" or "processing"
+	PitNumber         *string `json:"pit_number,omitempty"`
+	MinerName         *string `json:"miner_name,omitempty"`
 	MinerSerialNumber *string `json:"miner_serial_number,omitempty"`
-	BatchNumber      *string  `json:"batch_number,omitempty"`
-	ProcessingMethod *string  `json:"processing_method,omitempty"`
-	Product          *string  `json:"product,omitempty"` // "ore", "concentrate", "metal", "rough", "cut", "polished", "faceted", "other"
-	GemstoneType     *string  `json:"gemstone_type,omitempty"`
-	Quantity         float64  `json:"quantity"`
-	Unit             string   `json:"unit"`
-	MinStockLevel    float64  `json:"min_stock_level"`
-	CurrentValue     float64  `json:"current_value"`
-	LastUpdated      *string  `json:"last_updated,omitempty"` // Date string for production records
+	BatchNumber       *string `json:"batch_number,omitempty"`
+	ProcessingMethod  *string `json:"processing_method,omitempty"`
+	Product           *string `json:"product,omitempty"` // "ore", "concentrate", "metal", "rough", "cut", "polished", "faceted", "other"
+	GemstoneType      *string `json:"gemstone_type,omitempty"`
+	Quantity          float64 `json:"quantity"`
+	Unit              string  `json:"unit"`
+	MinStockLevel     float64 `json:"min_stock_level"`
+	CurrentValue      float64 `json:"current_value"`
+	LastUpdated       *string `json:"last_updated,omitempty"` // Auto-generated timestamp
 }
 
 // UpdateQuantityRequest represents an update quantity request
@@ -157,7 +159,16 @@ func (h *InventoryHandler) CreateInventoryItem(w http.ResponseWriter, r *http.Re
 		req.CurrentValue = 0
 	}
 
-	// Parse LastUpdated if provided
+	// Parse Date (production date) if provided
+	var productionDate *time.Time
+	if req.Date != nil && *req.Date != "" {
+		parsedDate, err := time.Parse("2006-01-02", *req.Date)
+		if err == nil {
+			productionDate = &parsedDate
+		}
+	}
+
+	// Parse LastUpdated if provided (auto-generated timestamp)
 	var lastUpdated time.Time
 	if req.LastUpdated != nil && *req.LastUpdated != "" {
 		parsedDate, err := time.Parse("2006-01-02", *req.LastUpdated)
@@ -200,22 +211,23 @@ func (h *InventoryHandler) CreateInventoryItem(w http.ResponseWriter, r *http.Re
 
 	// Create inventory item
 	item := &data.InventoryItem{
-		Name:             req.Name,
-		Type:             req.Type,
-		From:             from,
-		PitNumber:        req.PitNumber,
-		MinerName:        req.MinerName,
+		Name:              req.Name,
+		Type:              req.Type,
+		Date:              productionDate,
+		From:              from,
+		PitNumber:         req.PitNumber,
+		MinerName:         req.MinerName,
 		MinerSerialNumber: req.MinerSerialNumber,
-		BatchNumber:      req.BatchNumber,
-		ProcessingMethod: processingMethod,
-		Product:          product,
-		GemstoneType:     gemstoneType,
-		Quantity:         req.Quantity,
-		Unit:             req.Unit,
-		MinStockLevel:    req.MinStockLevel,
-		CurrentValue:     req.CurrentValue,
-		LastUpdated:      lastUpdated,
-		UserID:           userID,
+		BatchNumber:       req.BatchNumber,
+		ProcessingMethod:  processingMethod,
+		Product:           product,
+		GemstoneType:      gemstoneType,
+		Quantity:          req.Quantity,
+		Unit:              req.Unit,
+		MinStockLevel:     req.MinStockLevel,
+		CurrentValue:      req.CurrentValue,
+		LastUpdated:       lastUpdated,
+		UserID:            userID,
 	}
 
 	itemID, err := h.InventoryRepo.Insert(item)
@@ -291,7 +303,15 @@ func (h *InventoryHandler) UpdateInventoryItem(w http.ResponseWriter, r *http.Re
 		req.CurrentValue = 0
 	}
 
-	// Parse LastUpdated if provided
+	// Parse Date (production date) if provided
+	if req.Date != nil && *req.Date != "" {
+		parsedDate, err := time.Parse("2006-01-02", *req.Date)
+		if err == nil {
+			item.Date = &parsedDate
+		}
+	}
+
+	// Parse LastUpdated if provided (auto-generated timestamp)
 	if req.LastUpdated != nil && *req.LastUpdated != "" {
 		parsedDate, err := time.Parse("2006-01-02", *req.LastUpdated)
 		if err == nil {

@@ -239,6 +239,7 @@ type InventoryItem struct {
 	gorm.Model
 	Name             string            `gorm:"type:varchar(100);not null" json:"name"`
 	Type             string            `gorm:"type:varchar(20);not null" json:"type"`  // "mineral" or "supply"
+	Date             *time.Time        `json:"date,omitempty"`                          // Production date set by user
 	From             *ProductionFrom   `gorm:"type:varchar(20)" json:"from,omitempty"` // "mine" or "processing"
 	PitNumber        *string           `gorm:"type:varchar(100)" json:"pit_number,omitempty"`
 	MinerName        *string           `gorm:"type:varchar(100)" json:"miner_name,omitempty"`
