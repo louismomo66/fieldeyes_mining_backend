@@ -50,7 +50,13 @@ func (r *InventoryRepository) Update(item *InventoryItem) error {
 // Delete soft deletes an inventory item
 func (r *InventoryRepository) Delete(id uint, userID uint) error {
 	result := r.db.Where("id = ? AND user_id = ?", id, userID).Delete(&InventoryItem{})
-	return result.Error
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // GetLowStockItems retrieves items that are below minimum stock level

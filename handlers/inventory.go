@@ -389,7 +389,7 @@ func (h *InventoryHandler) DeleteInventoryItem(w http.ResponseWriter, r *http.Re
 
 	err = h.InventoryRepo.Delete(uint(id), userID)
 	if err != nil {
-		utils.WriteInternalServerError(w, "Failed to delete inventory item")
+		utils.WriteNotFoundError(w, "Inventory item not found")
 		return
 	}
 

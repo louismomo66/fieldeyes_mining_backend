@@ -60,7 +60,13 @@ func (r *ExpenseRepository) Update(expense *Expense) error {
 // Delete soft deletes an expense record
 func (r *ExpenseRepository) Delete(id uint, userID uint) error {
 	result := r.db.Where("id = ? AND user_id = ?", id, userID).Delete(&Expense{})
-	return result.Error
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // GetByDateRange retrieves expense records within a date range

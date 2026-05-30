@@ -5,6 +5,7 @@ import (
 	"log"
 	"mineral/data"
 	"os"
+	"strconv"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -92,10 +93,7 @@ func connectToDB() *gorm.DB {
 
 func openDB(dsn string) (*gorm.DB, error) {
 	config := &gorm.Config{
-		// You can add GORM configurations here
-		// For example:
-		// Logger: logger.Default.LogMode(logger.Info),
-		// PrepareStmt: true,
+		PrepareStmt: true, // cache prepared statements — reduces parse overhead per query
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), config)
@@ -109,10 +107,20 @@ func openDB(dsn string) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// Configure connection pool
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	// Configure connection pool from environment with sensible defaults.
+	// Tune MAX_DB_OPEN_CONNS and MAX_DB_IDLE_CONNS in .env for your server size:
+	//   Small VPS (2 CPU):  OPEN=50,  IDLE=10
+	//   Medium (4 CPU):     OPEN=100, IDLE=20
+	//   Large (8+ CPU):     OPEN=200, IDLE=40
+	maxOpen := getEnvInt("MAX_DB_OPEN_CONNS", 200)
+	maxIdle := getEnvInt("MAX_DB_IDLE_CONNS", 20)
+	connMaxLifetime := getEnvDuration("DB_CONN_MAX_LIFETIME", 30*time.Minute)
+	connMaxIdleTime := getEnvDuration("DB_CONN_MAX_IDLE_TIME", 5*time.Minute)
+
+	sqlDB.SetMaxOpenConns(maxOpen)
+	sqlDB.SetMaxIdleConns(maxIdle)
+	sqlDB.SetConnMaxLifetime(connMaxLifetime)
+	sqlDB.SetConnMaxIdleTime(connMaxIdleTime)
 
 	// Test the connection
 	err = sqlDB.Ping()
@@ -121,4 +129,24 @@ func openDB(dsn string) (*gorm.DB, error) {
 	}
 
 	return db, nil
+}
+
+// getEnvInt reads an integer from the environment with a fallback default.
+func getEnvInt(key string, defaultVal int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return defaultVal
+}
+
+// getEnvDuration reads a duration (in seconds) from the environment with a fallback.
+func getEnvDuration(key string, defaultVal time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return time.Duration(n) * time.Second
+		}
+	}
+	return defaultVal
 }

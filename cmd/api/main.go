@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"mineral/data"
 	"mineral/handlers"
@@ -100,13 +101,28 @@ func main() {
 		adminHandler,
 	)
 
-	// Create server
+	// Wrap router with a global request body size limit (4 MB) to prevent
+	// large payload attacks before they reach any handler.
+	limitedRouter := http.MaxBytesHandler(router, 4<<20)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "9006"
+	}
+
+	// Create server with tuned timeouts for higher concurrency:
+	//   ReadHeaderTimeout — fast rejection of slow-header attacks
+	//   ReadTimeout       — max time to read full request body
+	//   WriteTimeout      — max time to write response
+	//   IdleTimeout       — keep-alive connection reuse window
 	server := &http.Server{
-		Addr:         ":9006",
-		Handler:      router,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:              ":" + port,
+		Handler:           limitedRouter,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB header limit
 	}
 
 	// Start server in a goroutine
@@ -124,8 +140,11 @@ func main() {
 
 	app.InfoLog.Println("Server is shutting down...")
 
-	// Graceful shutdown
-	if err := server.Shutdown(nil); err != nil {
+	// Give in-flight requests up to 30 seconds to complete
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
 		app.ErrorLog.Fatalf("Server forced to shutdown: %v", err)
 	}
 

@@ -1,12 +1,14 @@
 # Makefile for Mining Finance System Backend
 
-# Default values
+# Load .env file if it exists — values can still be overridden by the shell environment
+-include .env
+export
+
+# Safe defaults for non-secret values only
 DB_HOST ?= localhost
 DB_PORT ?= 5433
 DB_USER ?= postgres
-DB_PASSWORD ?= miningFinanceDB_2025
 DB_NAME ?= mining_data
-JWT_SECRET ?= prod-mining-finance-secret-2025
 PORT ?= 9006
 
 # Colors for output

@@ -377,7 +377,7 @@ func (h *ExpenseHandler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 
 	err = h.ExpenseRepo.Delete(uint(id), userID)
 	if err != nil {
-		utils.WriteInternalServerError(w, "Failed to delete expense record")
+		utils.WriteNotFoundError(w, "Expense record not found")
 		return
 	}
 

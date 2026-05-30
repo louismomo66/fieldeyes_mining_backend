@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"mineral/data"
 	"mineral/pkg/middleware"
 	"mineral/pkg/utils"
@@ -38,8 +37,7 @@ func (h *AnalyticsHandler) GetFinancialSummary(w http.ResponseWriter, r *http.Re
 		utils.WriteInternalServerError(w, "Failed to retrieve income summary")
 		return
 	}
-	fmt.Printf("DEBUG: Income Summary - TotalIncome=%.2f, TotalReceivables=%.2f\n",
-		incomeSummary.TotalIncome, incomeSummary.TotalReceivables)
+
 
 	// Get expense summary
 	expenseSummary, err := h.ExpenseRepo.GetFinancialSummary(userID)
@@ -47,8 +45,7 @@ func (h *AnalyticsHandler) GetFinancialSummary(w http.ResponseWriter, r *http.Re
 		utils.WriteInternalServerError(w, "Failed to retrieve expense summary")
 		return
 	}
-	fmt.Printf("DEBUG: Expense Summary - TotalExpenses=%.2f, TotalPayables=%.2f\n",
-		expenseSummary.TotalExpenses, expenseSummary.TotalPayables)
+
 
 	// Calculate net profit
 	netProfit := incomeSummary.TotalIncome - expenseSummary.TotalExpenses

@@ -368,7 +368,7 @@ func (h *IncomeHandler) DeleteIncome(w http.ResponseWriter, r *http.Request) {
 
 	err = h.IncomeRepo.Delete(uint(id), userID)
 	if err != nil {
-		utils.WriteInternalServerError(w, "Failed to delete income record")
+		utils.WriteNotFoundError(w, "Income record not found")
 		return
 	}
 
