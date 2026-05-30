@@ -52,6 +52,9 @@ func SetupRoutes(
 		MaxAge:           300,
 	}))
 
+	// Security headers on every response
+	r.Use(middleware.SecurityHeadersMiddleware)
+
 	// Logging middleware
 	r.Use(middleware.LoggingMiddleware)
 
