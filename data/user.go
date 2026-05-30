@@ -145,18 +145,51 @@ func (u *UserRepository) GenerateAndSaveOTP(email string) (string, error) {
 	return otp, nil
 }
 
-// VerifyOTP verifies if the provided OTP is valid for the email
+// maxOTPAttempts is the number of failed OTP attempts before a lockout.
+const maxOTPAttempts = 5
+
+// otpLockoutDuration is how long an account is locked after too many OTP failures.
+const otpLockoutDuration = 15 * time.Minute
+
+// VerifyOTP verifies if the provided OTP is valid for the email.
+// It enforces a lockout after maxOTPAttempts consecutive failures.
 func (u *UserRepository) VerifyOTP(email, otp string) (bool, error) {
 	var user User
-	result := u.db.Where("email = ? AND otp_code = ? AND otp_expires_at > ?",
-		email, otp, time.Now()).First(&user)
-
+	result := u.db.Where("email = ?", email).First(&user)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
 			return false, nil
 		}
 		return false, result.Error
 	}
+
+	// Check if account is locked
+	if user.OTPLockedUntil != nil && time.Now().Before(*user.OTPLockedUntil) {
+		return false, fmt.Errorf("account locked due to too many failed attempts, try again later")
+	}
+
+	// Check OTP validity
+	now := time.Now()
+	valid := user.OTPCode == otp && user.OTPExpiresAt != nil && now.Before(*user.OTPExpiresAt)
+
+	if !valid {
+		// Increment failure counter
+		newAttempts := user.OTPAttempts + 1
+		updates := map[string]interface{}{"otp_attempts": newAttempts}
+		if newAttempts >= maxOTPAttempts {
+			lockedUntil := now.Add(otpLockoutDuration)
+			updates["otp_locked_until"] = lockedUntil
+			updates["otp_attempts"] = 0
+		}
+		u.db.Model(&User{}).Where("email = ?", email).Updates(updates)
+		return false, nil
+	}
+
+	// Reset attempt counter on success
+	u.db.Model(&User{}).Where("email = ?", email).Updates(map[string]interface{}{
+		"otp_attempts":    0,
+		"otp_locked_until": nil,
+	})
 
 	return true, nil
 }

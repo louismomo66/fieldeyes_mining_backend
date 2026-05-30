@@ -1,14 +1,17 @@
 version: '3.8'
 
+# Secrets are NOT hardcoded here. Copy .env.example to .env and fill in real values.
+# The compose file reads them from the host environment or a .env file in this directory.
+
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:15
     container_name: mining_postgres
     environment:
-      POSTGRES_DB: mining_data
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: miningFinanceDB_2025
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5433:5432"
     volumes:
@@ -20,7 +23,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: mining_redis
-    command: ["redis-server", "--requirepass", "miningFinanceRedis_2025"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     ports:
       - "6380:6379"
     volumes:
@@ -37,13 +40,20 @@ services:
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=miningFinanceDB_2025
-      - DB_NAME=mining_data
-      - JWT_SECRET=prod-mining-finance-secret-2025
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_REGISTRATION_CODE=${ADMIN_REGISTRATION_CODE}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=miningFinanceRedis_2025
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
       - PORT=9006
     depends_on:
       - postgres

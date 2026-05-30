@@ -140,6 +140,10 @@ type User struct {
 	// OTP fields for password reset
 	OTPCode      string     `gorm:"type:varchar(6)" json:"-"`
 	OTPExpiresAt *time.Time `json:"-"`
+
+	// OTP brute-force protection
+	OTPAttempts    int        `gorm:"default:0" json:"-"`
+	OTPLockedUntil *time.Time `json:"-"`
 }
 
 // Income represents an income transaction (Sales)

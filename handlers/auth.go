@@ -13,15 +13,17 @@ import (
 
 // AuthHandler handles authentication-related requests
 type AuthHandler struct {
-	UserRepo data.UserInterface
-	Mailer   email.Mailer
+	UserRepo  data.UserInterface
+	Mailer    email.Mailer
+	AdminCode string // loaded from ADMIN_REGISTRATION_CODE env var at startup
 }
 
 // NewAuthHandler creates a new AuthHandler
-func NewAuthHandler(userRepo data.UserInterface, mailer email.Mailer) *AuthHandler {
+func NewAuthHandler(userRepo data.UserInterface, mailer email.Mailer, adminCode string) *AuthHandler {
 	return &AuthHandler{
-		UserRepo: userRepo,
-		Mailer:   mailer,
+		UserRepo:  userRepo,
+		Mailer:    mailer,
+		AdminCode: adminCode,
 	}
 }
 
@@ -166,12 +168,16 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	// Determine user role
 	role := data.RoleStandard
 	if req.AdminCode != "" {
-		if req.AdminCode == "MINING2025ADMIN" {
-			role = data.RoleAdmin
-		} else {
+		if h.AdminCode == "" {
+			// Admin registration is disabled if no code is configured
+			utils.WriteValidationError(w, "Admin registration is not enabled")
+			return
+		}
+		if req.AdminCode != h.AdminCode {
 			utils.WriteValidationError(w, "Invalid admin code")
 			return
 		}
+		role = data.RoleAdmin
 	}
 
 	// Create new user

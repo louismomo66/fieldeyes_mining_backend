@@ -7,10 +7,19 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret = []byte("prod-mining-finance-secret-2025")
+// jwtSecret holds the signing key. It must be set via SetJWTSecret before any
+// token is generated or validated. There is intentionally no hardcoded fallback.
+var jwtSecret []byte
 
-// SetJWTSecret sets the JWT secret key
+// SetJWTSecret sets the JWT secret key. Must be called at startup with a value
+// loaded from the environment. Panics if secret is empty.
 func SetJWTSecret(secret string) {
+	if secret == "" {
+		panic("JWT_SECRET environment variable must be set and non-empty")
+	}
+	if len(secret) < 32 {
+		panic("JWT_SECRET must be at least 32 characters long")
+	}
 	jwtSecret = []byte(secret)
 }
 
@@ -40,7 +49,14 @@ func GenerateJWT(userID, email, role string) (string, error) {
 
 // ValidateJWT validates a JWT token
 func ValidateJWT(tokenString string) (*Claims, error) {
+	if len(jwtSecret) == 0 {
+		return nil, errors.New("JWT secret not initialised")
+	}
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		// Reject tokens that don't use HMAC — prevents algorithm confusion attacks
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
 		return jwtSecret, nil
 	})
 

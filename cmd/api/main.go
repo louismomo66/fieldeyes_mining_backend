@@ -67,15 +67,21 @@ func main() {
 		app.Mailer = &email.MockMailer{}
 	}
 
-	// Set JWT secret from environment
+	// Set JWT secret from environment — no fallback; app will not start without it
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		jwtSecret = "your-secret-key" // Default for development
+		app.ErrorLog.Fatal("JWT_SECRET environment variable is required and must not be empty")
 	}
 	utils.SetJWTSecret(jwtSecret)
 
+	// Load admin registration code from environment (optional — disables admin self-registration if unset)
+	adminCode := os.Getenv("ADMIN_REGISTRATION_CODE")
+	if adminCode == "" {
+		app.InfoLog.Println("ADMIN_REGISTRATION_CODE not set — admin self-registration is disabled")
+	}
+
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(app.Models.User, app.Mailer)
+	authHandler := handlers.NewAuthHandler(app.Models.User, app.Mailer, adminCode)
 	incomeHandler := handlers.NewIncomeHandler(app.Models.Income)
 	expenseHandler := handlers.NewExpenseHandler(app.Models.Expense, app.Models.MineSite)
 	inventoryHandler := handlers.NewInventoryHandler(app.Models.Inventory)

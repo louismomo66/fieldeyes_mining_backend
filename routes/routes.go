@@ -4,6 +4,9 @@ import (
 	"mineral/handlers"
 	"mineral/pkg/middleware"
 	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
@@ -21,14 +24,32 @@ func SetupRoutes(
 ) http.Handler {
 	r := chi.NewRouter()
 
-	// CORS configuration using chi's built-in CORS
+	// Build allowed origins from environment.
+	// ALLOWED_ORIGINS should be a comma-separated list, e.g.:
+	//   ALLOWED_ORIGINS=https://app.fieldeyes.com,https://admin.fieldeyes.com
+	// Falls back to localhost only for local development.
+	allowedOrigins := []string{"http://localhost:3000", "http://localhost:3001"}
+	if raw := os.Getenv("ALLOWED_ORIGINS"); raw != "" {
+		allowedOrigins = strings.Split(raw, ",")
+		for i, o := range allowedOrigins {
+			allowedOrigins[i] = strings.TrimSpace(o)
+		}
+	}
+
+	// Rate limiters for sensitive auth endpoints
+	// Login / signup: 10 requests per minute per IP
+	authLimiter := middleware.NewRateLimiter(10, 60*time.Second)
+	// Forgot-password / reset-password: 5 requests per minute per IP
+	passwordLimiter := middleware.NewRateLimiter(5, 60*time.Second)
+
+	// CORS configuration
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:8086"},
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Requested-With"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Requested-With"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
-		MaxAge:           300, // Maximum value not ignored by any of major browsers
+		MaxAge:           300,
 	}))
 
 	// Logging middleware
@@ -42,12 +63,12 @@ func SetupRoutes(
 
 	// API version 1 routes
 	r.Route("/api/v1", func(r chi.Router) {
-		// Authentication routes (no auth required)
+		// Authentication routes (no auth required, but rate-limited)
 		r.Route("/auth", func(r chi.Router) {
-			r.Post("/login", authHandler.Login)
-			r.Post("/signup", authHandler.Signup)
-			r.Post("/forgot-password", authHandler.ForgotPassword)
-			r.Post("/reset-password", authHandler.ResetPassword)
+			r.With(authLimiter.Middleware).Post("/login", authHandler.Login)
+			r.With(authLimiter.Middleware).Post("/signup", authHandler.Signup)
+			r.With(passwordLimiter.Middleware).Post("/forgot-password", authHandler.ForgotPassword)
+			r.With(passwordLimiter.Middleware).Post("/reset-password", authHandler.ResetPassword)
 		})
 
 		// Protected routes (require authentication)
