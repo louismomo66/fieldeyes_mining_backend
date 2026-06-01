@@ -1,6 +1,6 @@
 version: '3.8'
 
-# Secrets are NOT hardcoded here. Copy .env.example to .env and fill in real values.
+# Secrets are NOT hardcoded here. Copy env.example to .env and fill in real values.
 # The compose file reads them from the host environment or a .env file in this directory.
 
 services:
@@ -18,18 +18,55 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - mining_network
+    # Tune PostgreSQL for connection pooling via PgBouncer
+    command: >
+      postgres
+      -c max_connections=300
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=64MB
 
-  # Redis (optional, for caching)
+  # PgBouncer — connection pooler between the API and PostgreSQL
+  # Multiplexes up to 1000 app connections into 100 real DB connections
+  pgbouncer:
+    image: bitnami/pgbouncer:1.22.1
+    container_name: mining_pgbouncer
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_USERNAME: ${DB_USER}
+      POSTGRESQL_PASSWORD: ${DB_PASSWORD}
+      POSTGRESQL_DATABASE: ${DB_NAME}
+      PGBOUNCER_DATABASE: ${DB_NAME}
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 1000
+      PGBOUNCER_DEFAULT_POOL_SIZE: 100
+      PGBOUNCER_MIN_POOL_SIZE: 10
+      PGBOUNCER_RESERVE_POOL_SIZE: 20
+      PGBOUNCER_RESERVE_POOL_TIMEOUT: 5
+      PGBOUNCER_SERVER_IDLE_TIMEOUT: 600
+      PGBOUNCER_CLIENT_IDLE_TIMEOUT: 0
+    ports:
+      - "5432:5432"
+    depends_on:
+      - postgres
+    networks:
+      - mining_network
+    restart: unless-stopped
+
+  # Redis — caching layer for analytics endpoints
   redis:
     image: redis:7-alpine
     container_name: mining_redis
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
     ports:
       - "6380:6379"
     volumes:
       - redis_data:/data
     networks:
       - mining_network
+    restart: unless-stopped
 
   # Mining Finance API
   api:
@@ -38,25 +75,33 @@ services:
     ports:
       - "9006:9006"
     environment:
-      - DB_HOST=postgres
+      # API connects to PgBouncer, not directly to PostgreSQL
+      - DB_HOST=pgbouncer
       - DB_PORT=5432
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
+      # With PgBouncer handling pooling, keep app-side pool small
+      - MAX_DB_OPEN_CONNS=50
+      - MAX_DB_IDLE_CONNS=10
+      - DB_CONN_MAX_LIFETIME=300
+      - DB_CONN_MAX_IDLE_TIME=60
       - JWT_SECRET=${JWT_SECRET}
       - ADMIN_REGISTRATION_CODE=${ADMIN_REGISTRATION_CODE}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DB=0
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
       - SMTP_USERNAME=${SMTP_USERNAME}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_FROM=${SMTP_FROM}
       - PORT=9006
+      - APP_ENV=${APP_ENV}
     depends_on:
-      - postgres
+      - pgbouncer
       - redis
     networks:
       - mining_network

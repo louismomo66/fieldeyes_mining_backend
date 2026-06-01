@@ -5,6 +5,7 @@ import (
 	"log"
 	"mineral/data"
 	"mineral/handlers"
+	"mineral/pkg/cache"
 	"mineral/pkg/email"
 	"mineral/pkg/utils"
 	"mineral/routes"
@@ -81,12 +82,20 @@ func main() {
 		app.InfoLog.Println("ADMIN_REGISTRATION_CODE not set — admin self-registration is disabled")
 	}
 
+	// Initialize cache (Redis) — degrades gracefully if Redis is unavailable
+	cacheClient := cache.NewClient()
+	if cacheClient.IsEnabled() {
+		app.InfoLog.Println("Redis cache connected")
+	} else {
+		app.InfoLog.Println("Redis not configured or unavailable — running without cache")
+	}
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(app.Models.User, app.Mailer, adminCode)
-	incomeHandler := handlers.NewIncomeHandler(app.Models.Income)
-	expenseHandler := handlers.NewExpenseHandler(app.Models.Expense, app.Models.MineSite)
+	incomeHandler := handlers.NewIncomeHandler(app.Models.Income, cacheClient)
+	expenseHandler := handlers.NewExpenseHandler(app.Models.Expense, app.Models.MineSite, cacheClient)
 	inventoryHandler := handlers.NewInventoryHandler(app.Models.Inventory)
-	analyticsHandler := handlers.NewAnalyticsHandler(app.Models.Income, app.Models.Expense)
+	analyticsHandler := handlers.NewAnalyticsHandler(app.Models.Income, app.Models.Expense, cacheClient)
 	mineSiteHandler := handlers.NewMineSiteHandler(app.Models.MineSite)
 	adminHandler := handlers.NewAdminHandler(app.Models.User, app.Models.Income, app.Models.Expense, app.Models.Inventory)
 

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"mineral/data"
+	"mineral/pkg/cache"
 	"mineral/pkg/middleware"
 	"mineral/pkg/utils"
 	"net/http"
@@ -9,21 +11,31 @@ import (
 	"time"
 )
 
+// Analytics cache TTLs
+const (
+	summaryCacheTTL  = 5 * time.Minute
+	monthlyCacheTTL  = 10 * time.Minute
+	breakdownCacheTTL = 5 * time.Minute
+)
+
 // AnalyticsHandler handles analytics-related requests
 type AnalyticsHandler struct {
 	IncomeRepo  data.IncomeInterface
 	ExpenseRepo data.ExpenseInterface
+	Cache       *cache.Client
 }
 
 // NewAnalyticsHandler creates a new AnalyticsHandler
-func NewAnalyticsHandler(incomeRepo data.IncomeInterface, expenseRepo data.ExpenseInterface) *AnalyticsHandler {
+func NewAnalyticsHandler(incomeRepo data.IncomeInterface, expenseRepo data.ExpenseInterface, cache *cache.Client) *AnalyticsHandler {
 	return &AnalyticsHandler{
 		IncomeRepo:  incomeRepo,
 		ExpenseRepo: expenseRepo,
+		Cache:       cache,
 	}
 }
 
-// GetFinancialSummary retrieves financial summary for the authenticated user
+// GetFinancialSummary retrieves financial summary for the authenticated user.
+// Results are cached in Redis for 5 minutes per user.
 func (h *AnalyticsHandler) GetFinancialSummary(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserIDFromRequest(r)
 	if userID == 0 {
@@ -31,33 +43,35 @@ func (h *AnalyticsHandler) GetFinancialSummary(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Get income summary
+	cacheKey := fmt.Sprintf("analytics:summary:%d", userID)
+
+	// Try cache first
+	var summary data.FinancialSummary
+	if hit, _ := h.Cache.Get(cacheKey, &summary); hit {
+		utils.WriteSuccessResponse(w, "Financial summary retrieved successfully", &summary)
+		return
+	}
+
+	// Cache miss — query DB
 	incomeSummary, err := h.IncomeRepo.GetFinancialSummary(userID)
 	if err != nil {
 		utils.WriteInternalServerError(w, "Failed to retrieve income summary")
 		return
 	}
 
-
-	// Get expense summary
 	expenseSummary, err := h.ExpenseRepo.GetFinancialSummary(userID)
 	if err != nil {
 		utils.WriteInternalServerError(w, "Failed to retrieve expense summary")
 		return
 	}
 
-
-	// Calculate net profit
 	netProfit := incomeSummary.TotalIncome - expenseSummary.TotalExpenses
-
-	// Calculate profit margin
 	var profitMargin float64
 	if incomeSummary.TotalIncome > 0 {
 		profitMargin = (netProfit / incomeSummary.TotalIncome) * 100
 	}
 
-	// Combine summaries
-	summary := &data.FinancialSummary{
+	result := &data.FinancialSummary{
 		TotalIncome:      incomeSummary.TotalIncome,
 		TotalExpenses:    expenseSummary.TotalExpenses,
 		NetProfit:        netProfit,
@@ -66,10 +80,14 @@ func (h *AnalyticsHandler) GetFinancialSummary(w http.ResponseWriter, r *http.Re
 		ProfitMargin:     profitMargin,
 	}
 
-	utils.WriteSuccessResponse(w, "Financial summary retrieved successfully", summary)
+	// Store in cache
+	h.Cache.Set(cacheKey, result, summaryCacheTTL)
+
+	utils.WriteSuccessResponse(w, "Financial summary retrieved successfully", result)
 }
 
-// GetMonthlyData retrieves monthly financial data for a year
+// GetMonthlyData retrieves monthly financial data for a year.
+// Results are cached in Redis for 10 minutes per user per year.
 func (h *AnalyticsHandler) GetMonthlyData(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserIDFromRequest(r)
 	if userID == 0 {
@@ -77,7 +95,6 @@ func (h *AnalyticsHandler) GetMonthlyData(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Get year from query parameter, default to current year
 	yearStr := r.URL.Query().Get("year")
 	var year int
 	if yearStr == "" {
@@ -91,32 +108,35 @@ func (h *AnalyticsHandler) GetMonthlyData(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	// Get monthly income data
+	cacheKey := fmt.Sprintf("analytics:monthly:%d:%d", userID, year)
+
+	// Try cache first
+	var cached []*data.MonthlyData
+	if hit, _ := h.Cache.Get(cacheKey, &cached); hit {
+		utils.WriteSuccessResponse(w, "Monthly data retrieved successfully", cached)
+		return
+	}
+
+	// Cache miss — query DB
 	incomeData, err := h.IncomeRepo.GetMonthlyData(userID, year)
 	if err != nil {
 		utils.WriteInternalServerError(w, "Failed to retrieve monthly income data")
 		return
 	}
 
-	// Get monthly expense data
 	expenseData, err := h.ExpenseRepo.GetMonthlyData(userID, year)
 	if err != nil {
 		utils.WriteInternalServerError(w, "Failed to retrieve monthly expense data")
 		return
 	}
 
-	// Combine the data
 	monthlyData := make(map[string]*data.MonthlyData)
-
-	// Add income data
 	for _, item := range incomeData {
 		if monthlyData[item.Month] == nil {
 			monthlyData[item.Month] = &data.MonthlyData{Month: item.Month}
 		}
 		monthlyData[item.Month].Income = item.Income
 	}
-
-	// Add expense data
 	for _, item := range expenseData {
 		if monthlyData[item.Month] == nil {
 			monthlyData[item.Month] = &data.MonthlyData{Month: item.Month}
@@ -124,17 +144,20 @@ func (h *AnalyticsHandler) GetMonthlyData(w http.ResponseWriter, r *http.Request
 		monthlyData[item.Month].Expenses = item.Expenses
 	}
 
-	// Calculate profit for each month
 	var result []*data.MonthlyData
-	for _, data := range monthlyData {
-		data.Profit = data.Income - data.Expenses
-		result = append(result, data)
+	for _, d := range monthlyData {
+		d.Profit = d.Income - d.Expenses
+		result = append(result, d)
 	}
+
+	// Store in cache
+	h.Cache.Set(cacheKey, result, monthlyCacheTTL)
 
 	utils.WriteSuccessResponse(w, "Monthly data retrieved successfully", result)
 }
 
-// GetExpenseCategoryBreakdown retrieves expense breakdown by category
+// GetExpenseCategoryBreakdown retrieves expense breakdown by category.
+// Results are cached in Redis for 5 minutes per user.
 func (h *AnalyticsHandler) GetExpenseCategoryBreakdown(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserIDFromRequest(r)
 	if userID == 0 {
@@ -142,11 +165,24 @@ func (h *AnalyticsHandler) GetExpenseCategoryBreakdown(w http.ResponseWriter, r 
 		return
 	}
 
+	cacheKey := fmt.Sprintf("analytics:breakdown:%d", userID)
+
+	// Try cache first
+	var cached []*data.CategoryBreakdown
+	if hit, _ := h.Cache.Get(cacheKey, &cached); hit {
+		utils.WriteSuccessResponse(w, "Expense breakdown retrieved successfully", cached)
+		return
+	}
+
+	// Cache miss — query DB
 	breakdown, err := h.ExpenseRepo.GetCategoryBreakdown(userID)
 	if err != nil {
 		utils.WriteInternalServerError(w, "Failed to retrieve expense breakdown")
 		return
 	}
+
+	// Store in cache
+	h.Cache.Set(cacheKey, breakdown, breakdownCacheTTL)
 
 	utils.WriteSuccessResponse(w, "Expense breakdown retrieved successfully", breakdown)
 }

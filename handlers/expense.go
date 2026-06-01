@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"mineral/data"
+	"mineral/pkg/cache"
 	"mineral/pkg/middleware"
 	"mineral/pkg/utils"
 	"net/http"
@@ -14,15 +15,17 @@ import (
 
 // ExpenseHandler handles expense-related requests
 type ExpenseHandler struct {
-	ExpenseRepo data.ExpenseInterface
+	ExpenseRepo  data.ExpenseInterface
 	MineSiteRepo data.MineSiteInterface
+	Cache        *cache.Client
 }
 
 // NewExpenseHandler creates a new ExpenseHandler
-func NewExpenseHandler(expenseRepo data.ExpenseInterface, mineSiteRepo data.MineSiteInterface) *ExpenseHandler {
+func NewExpenseHandler(expenseRepo data.ExpenseInterface, mineSiteRepo data.MineSiteInterface, c *cache.Client) *ExpenseHandler {
 	return &ExpenseHandler{
-		ExpenseRepo: expenseRepo,
+		ExpenseRepo:  expenseRepo,
 		MineSiteRepo: mineSiteRepo,
+		Cache:        c,
 	}
 }
 
@@ -217,6 +220,7 @@ func (h *ExpenseHandler) CreateExpense(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	h.Cache.InvalidateUserAnalytics(userID)
 	utils.WriteSuccessResponse(w, "Expense record created successfully", expense)
 }
 
@@ -357,6 +361,7 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	h.Cache.InvalidateUserAnalytics(userID)
 	utils.WriteSuccessResponse(w, "Expense record updated successfully", expense)
 }
 
@@ -381,6 +386,7 @@ func (h *ExpenseHandler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.Cache.InvalidateUserAnalytics(userID)
 	utils.WriteSuccessResponse(w, "Expense record deleted successfully", nil)
 }
 

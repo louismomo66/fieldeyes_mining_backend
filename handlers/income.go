@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"mineral/data"
+	"mineral/pkg/cache"
 	"mineral/pkg/middleware"
 	"mineral/pkg/utils"
 	"net/http"
@@ -15,12 +16,14 @@ import (
 // IncomeHandler handles income-related requests
 type IncomeHandler struct {
 	IncomeRepo data.IncomeInterface
+	Cache      *cache.Client
 }
 
 // NewIncomeHandler creates a new IncomeHandler
-func NewIncomeHandler(incomeRepo data.IncomeInterface) *IncomeHandler {
+func NewIncomeHandler(incomeRepo data.IncomeInterface, c *cache.Client) *IncomeHandler {
 	return &IncomeHandler{
 		IncomeRepo: incomeRepo,
+		Cache:      c,
 	}
 }
 
@@ -219,6 +222,7 @@ func (h *IncomeHandler) CreateIncome(w http.ResponseWriter, r *http.Request) {
 	}
 
 	income.ID = incomeID
+	h.Cache.InvalidateUserAnalytics(userID)
 	utils.WriteSuccessResponse(w, "Income record created successfully", income)
 }
 
@@ -348,6 +352,7 @@ func (h *IncomeHandler) UpdateIncome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.Cache.InvalidateUserAnalytics(userID)
 	utils.WriteSuccessResponse(w, "Income record updated successfully", income)
 }
 
@@ -372,6 +377,7 @@ func (h *IncomeHandler) DeleteIncome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.Cache.InvalidateUserAnalytics(userID)
 	utils.WriteSuccessResponse(w, "Income record deleted successfully", nil)
 }
 
