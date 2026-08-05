@@ -26,9 +26,11 @@ func (app *Config) initDB() *gorm.DB {
 		&data.InventoryItem{},
 		&data.MineSiteInfo{},
 		&data.MineSiteCertification{},
+		// ExportShipment before CoCLot: a lot points at its shipment, so this is
+		// the order that would work if constraint creation were ever re-enabled.
+		&data.ExportShipment{},
 		&data.CoCLot{},
 		&data.LotComposition{},
-		&data.ExportShipment{},
 		&data.DueDiligenceReport{},
 		&data.ThirdPartyAudit{},
 		&data.ComplianceDocument{},
@@ -118,6 +120,19 @@ func connectToDB() *gorm.DB {
 func openDB(dsn string) (*gorm.DB, error) {
 	config := &gorm.Config{
 		PrepareStmt: true, // cache prepared statements — reduces parse overhead per query
+
+		// CoCLot and ExportShipment reference each other: a lot carries
+		// export_shipment_id, and ExportShipment declares `CoCLots []CoCLot`.
+		// That cycle means no ordering of CREATE TABLE satisfies both foreign
+		// keys on an empty database — GORM emits the constraint while creating
+		// co_c_lots and dies with `relation "export_shipments" does not exist`,
+		// panics, and the container restart-loops with the API returning 502.
+		//
+		// Ownership and referential rules are enforced in the handlers (every
+		// query is scoped by user_id, and deletes are soft), so nothing depends
+		// on the database rejecting a bad reference. Existing constraints on a
+		// live database are left alone — this only stops new ones being created.
+		DisableForeignKeyConstraintWhenMigrating: true,
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), config)
