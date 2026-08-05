@@ -12,6 +12,8 @@ services:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+      # Force MD5 authentication for compatibility with PgBouncer
+      POSTGRES_INITDB_ARGS: "--auth-host=md5 --auth-local=md5"
     ports:
       - "5433:5432"
     volumes:
@@ -26,29 +28,26 @@ services:
       -c effective_cache_size=768MB
       -c work_mem=4MB
       -c maintenance_work_mem=64MB
+      -c password_encryption=md5
 
   # PgBouncer — connection pooler between the API and PostgreSQL
   # Multiplexes up to 1000 app connections into 100 real DB connections
   pgbouncer:
-    image: bitnami/pgbouncer:1.22.1
+    image: edoburu/pgbouncer:latest
     container_name: mining_pgbouncer
     environment:
-      POSTGRESQL_HOST: postgres
-      POSTGRESQL_PORT: 5432
-      POSTGRESQL_USERNAME: ${DB_USER}
-      POSTGRESQL_PASSWORD: ${DB_PASSWORD}
-      POSTGRESQL_DATABASE: ${DB_NAME}
-      PGBOUNCER_DATABASE: ${DB_NAME}
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_MAX_CLIENT_CONN: 1000
-      PGBOUNCER_DEFAULT_POOL_SIZE: 100
-      PGBOUNCER_MIN_POOL_SIZE: 10
-      PGBOUNCER_RESERVE_POOL_SIZE: 20
-      PGBOUNCER_RESERVE_POOL_TIMEOUT: 5
-      PGBOUNCER_SERVER_IDLE_TIMEOUT: 600
-      PGBOUNCER_CLIENT_IDLE_TIMEOUT: 0
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=1000
+      - DEFAULT_POOL_SIZE=100
+      - MIN_POOL_SIZE=10
+      - RESERVE_POOL_SIZE=20
     ports:
-      - "5432:5432"
+      - "5436:5432"
     depends_on:
       - postgres
     networks:

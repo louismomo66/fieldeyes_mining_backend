@@ -37,6 +37,9 @@ type CreateInventoryRequest struct {
 	ProcessingMethod  *string `json:"processing_method,omitempty"`
 	Product           *string `json:"product,omitempty"` // "ore", "concentrate", "metal", "rough", "cut", "polished", "faceted", "other"
 	GemstoneType      *string `json:"gemstone_type,omitempty"`
+	GradeValue        *float64 `json:"grade_value,omitempty"`
+	GradeUnit         *string `json:"grade_unit,omitempty"`
+	GradeNotes        *string `json:"grade_notes,omitempty"`
 	Quantity          float64 `json:"quantity"`
 	Unit              string  `json:"unit"`
 	MinStockLevel     float64 `json:"min_stock_level"`
@@ -57,6 +60,9 @@ type UpdateInventoryRequest struct {
 	ProcessingMethod  *string `json:"processing_method,omitempty"`
 	Product           *string `json:"product,omitempty"` // "ore", "concentrate", "metal", "rough", "cut", "polished", "faceted", "other"
 	GemstoneType      *string `json:"gemstone_type,omitempty"`
+	GradeValue        *float64 `json:"grade_value,omitempty"`
+	GradeUnit         *string `json:"grade_unit,omitempty"`
+	GradeNotes        *string `json:"grade_notes,omitempty"`
 	Quantity          float64 `json:"quantity"`
 	Unit              string  `json:"unit"`
 	MinStockLevel     float64 `json:"min_stock_level"`
@@ -222,6 +228,9 @@ func (h *InventoryHandler) CreateInventoryItem(w http.ResponseWriter, r *http.Re
 		ProcessingMethod:  processingMethod,
 		Product:           product,
 		GemstoneType:      gemstoneType,
+		GradeValue:        req.GradeValue,
+		GradeUnit:         req.GradeUnit,
+		GradeNotes:        req.GradeNotes,
 		Quantity:          req.Quantity,
 		Unit:              req.Unit,
 		MinStockLevel:     req.MinStockLevel,
@@ -358,6 +367,9 @@ func (h *InventoryHandler) UpdateInventoryItem(w http.ResponseWriter, r *http.Re
 	item.MinerName = req.MinerName
 	item.MinerSerialNumber = req.MinerSerialNumber
 	item.BatchNumber = req.BatchNumber
+	item.GradeValue = req.GradeValue
+	item.GradeUnit = req.GradeUnit
+	item.GradeNotes = req.GradeNotes
 	item.Quantity = req.Quantity
 	item.Unit = req.Unit
 	item.MinStockLevel = req.MinStockLevel

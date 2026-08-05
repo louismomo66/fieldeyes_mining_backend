@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"mineral/data"
 	"mineral/handlers"
 	"mineral/pkg/middleware"
 	"net/http"
@@ -20,6 +21,8 @@ func SetupRoutes(
 	inventoryHandler *handlers.InventoryHandler,
 	analyticsHandler *handlers.AnalyticsHandler,
 	mineSiteHandler *handlers.MineSiteHandler,
+	complianceHandler *handlers.ComplianceHandler,
+	traceabilityHandler *handlers.TraceabilityHandler,
 	adminHandler *handlers.AdminHandler,
 ) http.Handler {
 	r := chi.NewRouter()
@@ -74,6 +77,9 @@ func SetupRoutes(
 			r.With(passwordLimiter.Middleware).Post("/reset-password", authHandler.ResetPassword)
 		})
 
+		// Public lot verification (QR target — no login, reg. 53).
+		r.Get("/public/verify/{code}", complianceHandler.GetPublicVerification)
+
 		// Protected routes (require authentication)
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.AuthMiddleware)
@@ -126,6 +132,94 @@ func SetupRoutes(
 				r.Get("/", mineSiteHandler.GetMineSiteInfo)
 				r.Post("/", mineSiteHandler.CreateOrUpdateMineSiteInfo)
 				r.Put("/", mineSiteHandler.CreateOrUpdateMineSiteInfo)
+			})
+
+			// ICGLR compliance routes
+			r.Route("/compliance", func(r chi.Router) {
+				r.Get("/summary", complianceHandler.GetSummary)
+
+				r.Route("/mine-site-certifications", func(r chi.Router) {
+					r.Get("/", complianceHandler.GetMineSiteCertifications)
+					r.Post("/", complianceHandler.CreateMineSiteCertification)
+					r.Put("/{id}", complianceHandler.UpdateMineSiteCertification)
+					r.Delete("/{id}", complianceHandler.DeleteMineSiteCertification)
+				})
+
+				r.Route("/coc-lots", func(r chi.Router) {
+					r.Get("/", complianceHandler.GetCoCLots)
+					r.Post("/", complianceHandler.CreateCoCLot)
+					r.Put("/{id}", complianceHandler.UpdateCoCLot)
+					r.Delete("/{id}", complianceHandler.DeleteCoCLot)
+					r.Post("/{id}/production-records", complianceHandler.LinkProductionRecords)
+					r.Get("/{id}/passport", complianceHandler.GetLotPassport)
+					// Multi-party custody handover — transporters/exporters typically use this.
+					r.With(middleware.RequireChainRole(data.ChainOperator, data.ChainTransporter, data.ChainExporter)).
+						Post("/{id}/handover", complianceHandler.HandoverCoCLot)
+					r.Get("/production-records", complianceHandler.GetAvailableProductionRecords)
+					r.Get("/production-records/by-pit", complianceHandler.GetProductionRecordsByPit)
+				})
+
+				r.Route("/export-shipments", func(r chi.Router) {
+					r.Get("/", complianceHandler.GetExportShipments)
+					r.Post("/", complianceHandler.CreateExportShipment)
+					r.Put("/{id}", complianceHandler.UpdateExportShipment)
+					r.Delete("/{id}", complianceHandler.DeleteExportShipment)
+				})
+
+				r.Route("/due-diligence-reports", func(r chi.Router) {
+					r.Get("/", complianceHandler.GetDueDiligenceReports)
+					r.Post("/", complianceHandler.CreateDueDiligenceReport)
+					r.Put("/{id}", complianceHandler.UpdateDueDiligenceReport)
+					r.Delete("/{id}", complianceHandler.DeleteDueDiligenceReport)
+				})
+
+				r.Route("/third-party-audits", func(r chi.Router) {
+					r.Get("/", complianceHandler.GetThirdPartyAudits)
+					r.Post("/", complianceHandler.CreateThirdPartyAudit)
+					r.Put("/{id}", complianceHandler.UpdateThirdPartyAudit)
+					r.Delete("/{id}", complianceHandler.DeleteThirdPartyAudit)
+				})
+
+				r.Route("/documents", func(r chi.Router) {
+					r.Get("/", complianceHandler.GetComplianceDocuments)
+					r.Post("/", complianceHandler.CreateComplianceDocument)
+					r.Put("/{id}", complianceHandler.UpdateComplianceDocument)
+					r.Delete("/{id}", complianceHandler.DeleteComplianceDocument)
+				})
+			})
+
+			// Enhanced Traceability routes
+			r.Route("/traceability", func(r chi.Router) {
+				// Transport records
+				r.Route("/transport", func(r chi.Router) {
+					r.Get("/", traceabilityHandler.GetTransportRecords)
+					r.Post("/", traceabilityHandler.CreateTransportRecord)
+					r.Put("/{id}/status", traceabilityHandler.UpdateTransportStatus)
+				})
+
+				// Processing records
+				r.Route("/processing", func(r chi.Router) {
+					r.Get("/", traceabilityHandler.GetProcessingRecords)
+					r.Post("/", traceabilityHandler.CreateProcessingRecord)
+				})
+
+				// Real-time tracking
+				r.Route("/tracking", func(r chi.Router) {
+					r.Get("/", traceabilityHandler.GetRealTimeTracking)
+					r.Post("/location", traceabilityHandler.UpdateLotLocation)
+				})
+
+				// Stakeholders
+				r.Route("/stakeholders", func(r chi.Router) {
+					r.Get("/", traceabilityHandler.GetStakeholders)
+					r.Post("/", traceabilityHandler.CreateStakeholder)
+				})
+
+				// Tracking alerts
+				r.Route("/alerts", func(r chi.Router) {
+					r.Get("/", traceabilityHandler.GetTrackingAlerts)
+					r.Post("/", traceabilityHandler.CreateTrackingAlert)
+				})
 			})
 
 			// User serial number route (available to all authenticated users)

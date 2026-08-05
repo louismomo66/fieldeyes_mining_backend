@@ -40,6 +40,7 @@ type SignupRequest struct {
 	Phone     string `json:"phone,omitempty"`
 	Password  string `json:"password"`
 	AdminCode string `json:"admin_code,omitempty"`
+	ChainRole string `json:"chain_role,omitempty"` // operator/transporter/exporter/inspector
 }
 
 // ForgotPasswordRequest represents a forgot password request
@@ -93,8 +94,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT token
-	token, err := utils.GenerateToken(fmt.Sprintf("%d", user.ID), user.Email, string(user.Role))
+	// Generate JWT token (carries the supply-chain role; empty for legacy users)
+	token, err := utils.GenerateJWTWithChainRole(fmt.Sprintf("%d", user.ID), user.Email, string(user.Role), string(user.ChainRole))
 	if err != nil {
 		utils.WriteInternalServerError(w, "Failed to generate token")
 		return
@@ -104,11 +105,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"token": token,
 		"user": map[string]interface{}{
-			"id":    user.ID,
-			"email": user.Email,
-			"name":  user.Name,
-			"phone": user.Phone,
-			"role":  user.Role,
+			"id":         user.ID,
+			"email":      user.Email,
+			"name":       user.Name,
+			"phone":      user.Phone,
+			"role":       user.Role,
+			"chain_role": user.ChainRole,
 		},
 	}
 
@@ -132,6 +134,7 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 		req.Name = r.FormValue("name")
 		req.Password = r.FormValue("password")
 		req.Phone = r.FormValue("phone")
+		req.ChainRole = r.FormValue("chain_role")
 	} else {
 		// Handle JSON
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -180,12 +183,23 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 		role = data.RoleAdmin
 	}
 
+	// Determine supply-chain role. New signups default to operator (fullest
+	// self-service role); an explicit choice must be one of the four.
+	chainRole := data.ChainRole(req.ChainRole)
+	if req.ChainRole == "" {
+		chainRole = data.ChainOperator
+	} else if !data.ValidChainRole(req.ChainRole) {
+		utils.WriteValidationError(w, "Role must be operator, transporter, exporter or inspector")
+		return
+	}
+
 	// Create new user
 	user := &data.User{
-		Email: req.Email,
-		Name:  req.Name,
-		Phone: &req.Phone,
-		Role:  role,
+		Email:     req.Email,
+		Name:      req.Name,
+		Phone:     &req.Phone,
+		Role:      role,
+		ChainRole: chainRole,
 	}
 	if req.Phone == "" {
 		user.Phone = nil
@@ -200,7 +214,7 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT token
-	token, err := utils.GenerateToken(fmt.Sprintf("%d", userID), user.Email, string(user.Role))
+	token, err := utils.GenerateJWTWithChainRole(fmt.Sprintf("%d", userID), user.Email, string(user.Role), string(user.ChainRole))
 	if err != nil {
 		utils.WriteInternalServerError(w, "Failed to generate token")
 		return
@@ -210,11 +224,12 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"token": token,
 		"user": map[string]interface{}{
-			"id":    userID,
-			"email": user.Email,
-			"name":  user.Name,
-			"phone": user.Phone,
-			"role":  user.Role,
+			"id":         userID,
+			"email":      user.Email,
+			"name":       user.Name,
+			"phone":      user.Phone,
+			"role":       user.Role,
+			"chain_role": user.ChainRole,
 		},
 	}
 
@@ -317,11 +332,12 @@ func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 
 	// Remove sensitive information
 	response := map[string]interface{}{
-		"id":    user.ID,
-		"email": user.Email,
-		"name":  user.Name,
-		"phone": user.Phone,
-		"role":  user.Role,
+		"id":         user.ID,
+		"email":      user.Email,
+		"name":       user.Name,
+		"phone":      user.Phone,
+		"role":       user.Role,
+		"chain_role": user.ChainRole,
 	}
 
 	utils.WriteSuccessResponse(w, "Profile retrieved successfully", response)

@@ -41,11 +41,13 @@ func main() {
 
 	// Initialize repositories
 	app.Models = data.Models{
-		User:      data.NewUserRepository(app.DB),
-		Income:    data.NewIncomeRepository(app.DB),
-		Expense:   data.NewExpenseRepository(app.DB),
-		Inventory: data.NewInventoryRepository(app.DB),
-		MineSite:  data.NewMineSiteRepository(app.DB),
+		User:         data.NewUserRepository(app.DB),
+		Income:       data.NewIncomeRepository(app.DB),
+		Expense:      data.NewExpenseRepository(app.DB),
+		Inventory:    data.NewInventoryRepository(app.DB),
+		MineSite:     data.NewMineSiteRepository(app.DB),
+		Compliance:   data.NewComplianceRepository(app.DB),
+		Traceability: data.NewTraceabilityRepository(app.DB),
 	}
 
 	// Initialize mailer (mock for development)
@@ -97,6 +99,8 @@ func main() {
 	inventoryHandler := handlers.NewInventoryHandler(app.Models.Inventory)
 	analyticsHandler := handlers.NewAnalyticsHandler(app.Models.Income, app.Models.Expense, cacheClient)
 	mineSiteHandler := handlers.NewMineSiteHandler(app.Models.MineSite)
+	complianceHandler := handlers.NewComplianceHandler(app.Models.Compliance, app.Models.Traceability)
+	traceabilityHandler := handlers.NewTraceabilityHandler(app.Models.Traceability)
 	adminHandler := handlers.NewAdminHandler(app.Models.User, app.Models.Income, app.Models.Expense, app.Models.Inventory)
 
 	// Setup routes
@@ -107,6 +111,8 @@ func main() {
 		inventoryHandler,
 		analyticsHandler,
 		mineSiteHandler,
+		complianceHandler,
+		traceabilityHandler,
 		adminHandler,
 	)
 

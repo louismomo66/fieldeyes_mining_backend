@@ -23,20 +23,30 @@ func SetJWTSecret(secret string) {
 	jwtSecret = []byte(secret)
 }
 
-// Claims represents JWT claims
+// Claims represents JWT claims.
+// ChainRole is the supply-chain role (operator/transporter/exporter/inspector).
+// It is omitempty and optional: tokens issued before this feature simply have an
+// empty ChainRole, which the app treats as legacy full access.
 type Claims struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
-	Role   string `json:"role"`
+	UserID    string `json:"user_id"`
+	Email     string `json:"email"`
+	Role      string `json:"role"`
+	ChainRole string `json:"chain_role,omitempty"`
 	jwt.RegisteredClaims
 }
 
-// GenerateJWT creates a new JWT token
+// GenerateJWT creates a new JWT token (no chain role — kept for compatibility).
 func GenerateJWT(userID, email, role string) (string, error) {
+	return GenerateJWTWithChainRole(userID, email, role, "")
+}
+
+// GenerateJWTWithChainRole creates a token that also carries the supply-chain role.
+func GenerateJWTWithChainRole(userID, email, role, chainRole string) (string, error) {
 	claims := Claims{
-		UserID: userID,
-		Email:  email,
-		Role:   role,
+		UserID:    userID,
+		Email:     email,
+		Role:      role,
+		ChainRole: chainRole,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

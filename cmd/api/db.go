@@ -25,10 +25,34 @@ func (app *Config) initDB() *gorm.DB {
 		&data.Expense{},
 		&data.InventoryItem{},
 		&data.MineSiteInfo{},
+		&data.MineSiteCertification{},
+		&data.CoCLot{},
+		&data.LotComposition{},
+		&data.ExportShipment{},
+		&data.DueDiligenceReport{},
+		&data.ThirdPartyAudit{},
+		&data.ComplianceDocument{},
+		// Enhanced traceability models
+		&data.GPSLocation{},
+		&data.TransportRecord{},
+		&data.ProcessingRecord{},
+		&data.TrackingAlert{},
+		&data.RealTimeTracking{},
+		&data.CustodyTransfer{},
+		&data.PhotoRecord{},
+		&data.Stakeholder{},
 	); err != nil {
 		log.Panic("failed to migrate database:", err)
 	}
 	log.Println("Database migration completed successfully")
+
+	// Backfill public verification codes for any lots created before the QR
+	// verification feature existed. Idempotent and additive — safe on live data.
+	if n, err := data.NewComplianceRepository(conn).BackfillVerifyCodes(); err != nil {
+		log.Println("warning: verify-code backfill failed:", err)
+	} else if n > 0 {
+		log.Printf("Backfilled verification codes for %d existing CoC lot(s)", n)
+	}
 
 	return conn
 }
