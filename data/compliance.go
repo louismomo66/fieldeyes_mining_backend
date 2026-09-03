@@ -16,11 +16,11 @@ type ComplianceRepository struct {
 	db *gorm.DB
 }
 
-// unitToKg mirrors lib/stock.ts's UNIT_TO_KG on the frontend — keep the two in
+// UnitToKg mirrors lib/stock.ts's UNIT_TO_KG on the frontend — keep the two in
 // sync. Without this, summing production records recorded in different units
 // (2 g + 1 kg) added the raw numbers together (= 3) instead of converting
 // first (= 1.002 kg), and copied whichever record's unit happened to be first.
-var unitToKg = map[string]float64{
+var UnitToKg = map[string]float64{
 	"kg":     1,
 	"g":      0.001,
 	"grams":  0.001,
@@ -35,7 +35,7 @@ var unitToKg = map[string]float64{
 // unconvertibleCount — rather than added in at the wrong scale.
 func sumQuantityKg(items []InventoryItem) (totalKg float64, unconvertibleCount int) {
 	for _, item := range items {
-		factor, ok := unitToKg[strings.ToLower(item.Unit)]
+		factor, ok := UnitToKg[strings.ToLower(item.Unit)]
 		if !ok {
 			unconvertibleCount++
 			continue
@@ -100,17 +100,18 @@ func (r *ComplianceRepository) GetCoCLot(id uint, userID uint) (*CoCLot, error) 
 	return &record, nil
 }
 
-// GetCoCLotsByIDs returns the given lots (user-scoped) with certification preloaded.
+// GetCoCLotsByIDs looks lots up by ID, scoped the same way GetCoCLots is: a
+// user may reach a lot they own or one currently handed over to them.
 func (r *ComplianceRepository) GetCoCLotsByIDs(ids []uint, userID uint) ([]*CoCLot, error) {
 	var records []*CoCLot
 	result := r.db.Preload("MineSiteCertification").
-		Where("id IN ? AND user_id = ?", ids, userID).Find(&records)
+		Where("id IN ? AND (user_id = ? OR current_custodian_user_id = ?)", ids, userID, userID).Find(&records)
 	return records, result.Error
 }
 
 func (r *ComplianceRepository) GetAvailableProductionRecords(userID uint, mineralType MineralType) ([]*InventoryItem, error) {
 	var records []*InventoryItem
-	
+
 	mineralName := strings.ToLower(string(mineralType))
 
 	// Exclude records already linked to a CoC lot so the same production
@@ -137,13 +138,13 @@ func (r *ComplianceRepository) LinkProductionRecordsToCoCLot(lotID uint, product
 	if err := r.db.First(&lot, lotID).Error; err != nil {
 		return err
 	}
-	
+
 	// Get the production records to link
 	var records []InventoryItem
 	if err := r.db.Where("id IN ?", productionRecordIDs).Find(&records).Error; err != nil {
 		return err
 	}
-	
+
 	// Add the association
 	return r.db.Model(&lot).Association("ProductionRecords").Append(records)
 }
@@ -293,7 +294,7 @@ func (r *ComplianceRepository) InsertCoCLotWithLinks(record *CoCLot, productionR
 			// are converted to a common unit before being summed or weighted —
 			// never added or weighted by their raw, mismatched quantities.
 			if record.Weight <= 0 {
-				// Any record in a unit outside unitToKg is excluded from the sum
+				// Any record in a unit outside UnitToKg is excluded from the sum
 				// rather than added in at the wrong scale — matching how the
 				// Inventory reconciliation (lib/stock.ts) treats the same case.
 				// In practice this is rare: production entry only offers
@@ -317,7 +318,7 @@ func (r *ComplianceRepository) InsertCoCLotWithLinks(record *CoCLot, productionR
 						consistent = false
 						break
 					}
-					factor, ok := unitToKg[strings.ToLower(item.Unit)]
+					factor, ok := UnitToKg[strings.ToLower(item.Unit)]
 					if !ok {
 						consistent = false
 						break
@@ -353,6 +354,84 @@ func (r *ComplianceRepository) InsertCoCLotWithLinks(record *CoCLot, productionR
 		return nil
 	})
 	return record.ID, err
+}
+
+// ProcessingRunResult is returned after a processing run — the freshly created
+// output lot and the processing record linking it to its inputs.
+type ProcessingRunResult struct {
+	OutputLot        *CoCLot           `json:"output_lot"`
+	ProcessingRecord *ProcessingRecord `json:"processing_record"`
+}
+
+// CreateProcessingRun consumes inputLotIDs into a new output lot, in one
+// transaction. This is the real "merge lots" feature: ProcessingRecord has
+// carried InputLots and OutputLotID since the schema was written, but no
+// frontend form ever populated them — every processing record created
+// through the UI was a free-typed note disconnected from the lots it
+// claimed to consume.
+//
+// outputLot must already have its identity and origin fields set by the
+// caller (LotNumber, VerifyCode, MineralType, Weight, Unit, SourceMineSite,
+// MineSiteStatus, MineSiteCertificationID, CoCSystem, UserID) — mirroring how
+// CreateCoCLot's handler prepares a record before InsertCoCLotWithLinks. This
+// method owns only the linking and the input lots' lifecycle.
+//
+// Input lots are re-fetched inside the transaction (rather than trusting
+// whatever the caller validated against a moment earlier) so a lot exported
+// by a concurrent request can't slip through.
+func (r *ComplianceRepository) CreateProcessingRun(
+	userID uint,
+	inputLotIDs []uint,
+	outputLot *CoCLot,
+	rec *ProcessingRecord,
+) (*ProcessingRunResult, error) {
+	result := &ProcessingRunResult{}
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var inputLots []CoCLot
+		if err := tx.Where("id IN ? AND (user_id = ? OR current_custodian_user_id = ?)", inputLotIDs, userID, userID).
+			Find(&inputLots).Error; err != nil {
+			return err
+		}
+		if len(inputLots) != len(inputLotIDs) {
+			return fmt.Errorf("one or more input lots were not found, or are not in your custody")
+		}
+		for _, l := range inputLots {
+			if l.IsExported {
+				return fmt.Errorf("lot %s has already been exported and cannot be processed", l.LotNumber)
+			}
+		}
+
+		if err := tx.Create(outputLot).Error; err != nil {
+			return err
+		}
+
+		rec.OutputLotID = &outputLot.ID
+		rec.UserID = userID
+		if err := tx.Create(rec).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(rec).Association("InputLots").Append(&inputLots); err != nil {
+			return err
+		}
+
+		// Consumed — no longer independently at the mine or in transit.
+		ids := make([]uint, len(inputLots))
+		for i, l := range inputLots {
+			ids[i] = l.ID
+		}
+		if err := tx.Model(&CoCLot{}).Where("id IN ?", ids).
+			Update("tracking_state", string(StatusProcessing)).Error; err != nil {
+			return err
+		}
+
+		result.OutputLot = outputLot
+		result.ProcessingRecord = rec
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // AttachLotsToShipment links CoC lots to an export shipment and moves them to
@@ -432,9 +511,9 @@ type PublicStep struct {
 
 // HandoverResult is returned after a successful custody handover.
 type HandoverResult struct {
-	Lot          *CoCLot `json:"lot"`
-	ToUserID     uint    `json:"to_user_id"`
-	ToName       string  `json:"to_name"`
+	Lot      *CoCLot `json:"lot"`
+	ToUserID uint    `json:"to_user_id"`
+	ToName   string  `json:"to_name"`
 }
 
 // HandoverLot transfers custody of a lot to another user (by email), records an
@@ -594,9 +673,14 @@ func (r *ComplianceRepository) GetPublicLotView(code string) (*PublicLotView, er
 // production → certification → composition → custody → transport → processing → export.
 func (r *ComplianceRepository) GetLotPassport(lotID uint, userID uint) (*LotPassport, error) {
 	var lot CoCLot
+	// A user can open the passport of a lot they own, plus any lot currently
+	// handed over to them — the same rule GetCoCLots uses for its list. This
+	// endpoint had fallen out of sync with that rule: the lot would appear in
+	// a recipient's list but 404 the moment they opened it.
 	if err := r.db.Preload("ProductionRecords").Preload("MineSiteCertification").
 		Preload("SourceLots").Preload("SourceLots.SourceLot").
-		Where("id = ? AND user_id = ?", lotID, userID).First(&lot).Error; err != nil {
+		Where("id = ? AND (user_id = ? OR current_custodian_user_id = ?)", lotID, userID, userID).
+		First(&lot).Error; err != nil {
 		return nil, err
 	}
 
@@ -613,21 +697,27 @@ func (r *ComplianceRepository) GetLotPassport(lotID uint, userID uint) (*LotPass
 		Alerts:            []TrackingAlert{},
 	}
 
+	// Everything below belongs to the lot, not to whoever happens to be asking
+	// for it — a custody transfer is created under the sender's user ID
+	// (HandoverLot), so once the top query above has cleared userID to view
+	// this lot at all, none of these are re-filtered by user_id. Doing so
+	// used to hide a lot's own handover record from the party it was handed
+	// to: they'd open the passport and see "still with the owner".
+
 	// Mixed lots this lot was blended into (forward traceability).
-	r.db.Where("source_lot_id = ? AND user_id = ?", lotID, userID).Find(&passport.UsedInLots)
+	r.db.Where("source_lot_id = ?", lotID).Find(&passport.UsedInLots)
 
 	// Custody transfers in chronological order. Struct-based condition so GORM
 	// resolves the CoCLotID column name itself.
 	r.db.Preload("TransferLocation").
 		Where(&CustodyTransfer{CoCLotID: lotID}).
-		Where("user_id = ?", userID).
 		Order("transfer_date ASC").Find(&passport.CustodyTransfers)
 
 	// Transport records that carried this lot — linked records plus legacy
 	// records that stored lot IDs as JSON text.
 	var transports []TransportRecord
 	r.db.Preload("Origin").Preload("Destination").Preload("Lots").
-		Where("user_id = ?", userID).Order("departure_time ASC").Find(&transports)
+		Order("departure_time ASC").Find(&transports)
 	for _, t := range transports {
 		matched := false
 		for _, l := range t.Lots {
@@ -655,7 +745,7 @@ func (r *ComplianceRepository) GetLotPassport(lotID uint, userID uint) (*LotPass
 
 	// Processing runs that consumed or produced this lot.
 	var processes []ProcessingRecord
-	r.db.Preload("InputLots").Where("user_id = ?", userID).Find(&processes)
+	r.db.Preload("InputLots").Find(&processes)
 	for _, p := range processes {
 		matched := p.OutputLotID != nil && *p.OutputLotID == lotID
 		if !matched {
@@ -667,7 +757,9 @@ func (r *ComplianceRepository) GetLotPassport(lotID uint, userID uint) (*LotPass
 			}
 		}
 		if matched {
-			p.InputLots = nil
+			// InputLots is kept (unlike TransportRecords' Lots above) — it's
+			// what lets a lot's own passport show real provenance for an
+			// output lot: "produced from LOT-X, LOT-Y", not just a run count.
 			passport.ProcessingRecords = append(passport.ProcessingRecords, p)
 		}
 	}
@@ -675,15 +767,15 @@ func (r *ComplianceRepository) GetLotPassport(lotID uint, userID uint) (*LotPass
 	// Export shipment, documents, alerts and live tracking.
 	if lot.ExportShipmentID != nil {
 		var shipment ExportShipment
-		if err := r.db.Where("id = ? AND user_id = ?", *lot.ExportShipmentID, userID).First(&shipment).Error; err == nil {
+		if err := r.db.Where("id = ?", *lot.ExportShipmentID).First(&shipment).Error; err == nil {
 			passport.ExportShipment = &shipment
 		}
 	}
-	r.db.Where("related_entity = ? AND related_id = ? AND user_id = ?", "coc_lot", lotID, userID).Find(&passport.Documents)
-	r.db.Where("lot_id = ? AND lot_type = ? AND user_id = ?", lotID, "coc_lot", userID).Find(&passport.Alerts)
+	r.db.Where("related_entity = ? AND related_id = ?", "coc_lot", lotID).Find(&passport.Documents)
+	r.db.Where("lot_id = ? AND lot_type = ?", lotID, "coc_lot").Find(&passport.Alerts)
 	var tracking RealTimeTracking
 	if err := r.db.Preload("CurrentLocation").
-		Where("lot_id = ? AND lot_type = ? AND user_id = ?", lotID, "coc_lot", userID).
+		Where("lot_id = ? AND lot_type = ?", lotID, "coc_lot").
 		First(&tracking).Error; err == nil {
 		passport.Tracking = &tracking
 	}

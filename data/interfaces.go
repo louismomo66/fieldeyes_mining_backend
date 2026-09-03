@@ -78,6 +78,7 @@ type ComplianceInterface interface {
 	GetPublicLotView(code string) (*PublicLotView, error)
 	BackfillVerifyCodes() (int, error)
 	HandoverLot(lotID, fromUserID uint, toEmail, note, location string) (*HandoverResult, error)
+	CreateProcessingRun(userID uint, inputLotIDs []uint, outputLot *CoCLot, rec *ProcessingRecord) (*ProcessingRunResult, error)
 	AttachLotsToShipment(shipmentID uint, lotIDs []uint, userID uint) error
 	DetachLotsFromShipment(shipmentID uint, userID uint) error
 	MarkShipmentLotsExported(shipmentID uint, userID uint, shippedAt time.Time) error

@@ -159,6 +159,11 @@ func SetupRoutes(
 					r.Get("/production-records/by-pit", complianceHandler.GetProductionRecordsByPit)
 				})
 
+				// Merge real input lots into one real, linked output lot —
+				// distinct from the older /processing-records endpoint, which
+				// records a processing note with no link to any actual lot.
+				r.Post("/processing-runs", complianceHandler.CreateProcessingRun)
+
 				r.Route("/export-shipments", func(r chi.Router) {
 					r.Get("/", complianceHandler.GetExportShipments)
 					r.Post("/", complianceHandler.CreateExportShipment)

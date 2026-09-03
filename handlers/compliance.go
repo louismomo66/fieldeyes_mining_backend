@@ -377,6 +377,186 @@ func (h *ComplianceHandler) CreateCoCLot(w http.ResponseWriter, r *http.Request)
 	utils.WriteSuccessResponse(w, "CoC lot created successfully", record)
 }
 
+// ProcessingRunRequest describes a real processing run: consume named input
+// lots, produce one output lot. Distinct from the legacy "quick" processing
+// forms, which recorded a free-typed input/output weight with no link to any
+// actual CoCLot — those still exist and still work, this is additive.
+type ProcessingRunRequest struct {
+	InputLotIDs      []uint   `json:"input_lot_ids"`
+	FacilityName     string   `json:"facility_name"`
+	ProcessType      []string `json:"process_type"`
+	Operator         string   `json:"operator"`
+	Supervisor       string   `json:"supervisor"`
+	Duration         int      `json:"duration"`
+	SamplesCollected int      `json:"samples_collected"`
+	QualityNotes     string   `json:"quality_notes"`
+
+	// Output lot. Weight is optional — left blank, it's input total minus
+	// waste, the same "derive, don't retype" rule lot registration already
+	// follows. Mineral, site and CoC system are never asked for: they're
+	// inherited from the inputs, since an output batch can't have a
+	// different origin than what went into it.
+	OutputWeight     float64  `json:"output_weight"`
+	WasteGenerated   float64  `json:"waste_generated"`
+	OutputGradeValue *float64 `json:"output_grade_value,omitempty"`
+	OutputGradeUnit  *string  `json:"output_grade_unit,omitempty"`
+	SealNumber       *string  `json:"seal_number,omitempty"`
+}
+
+// statusRank orders site status from most to least restrictive, so a run
+// blending lots from several sites inherits the worst one — a clean input
+// can't launder a red-flagged one by sharing a batch with it.
+var statusRank = map[data.ComplianceStatus]int{
+	data.StatusBlue:   0,
+	data.StatusYellow: 1,
+	data.StatusGreen:  2,
+}
+
+// CreateProcessingRun is the real merge-lots-into-one-batch feature: pick
+// real input lots, get a real output lot that carries their combined
+// traceability forward — not a note that happens to mention a weight.
+func (h *ComplianceHandler) CreateProcessingRun(w http.ResponseWriter, r *http.Request) {
+	userID := authenticatedUserID(w, r)
+	if userID == 0 {
+		return
+	}
+	var req ProcessingRunRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if len(req.InputLotIDs) == 0 {
+		utils.WriteValidationError(w, "Select at least one input lot")
+		return
+	}
+	if strings.TrimSpace(req.FacilityName) == "" {
+		utils.WriteValidationError(w, "Facility is required")
+		return
+	}
+
+	inputs, err := h.ComplianceRepo.GetCoCLotsByIDs(req.InputLotIDs, userID)
+	if err != nil {
+		utils.WriteInternalServerError(w, "Failed to load input lots")
+		return
+	}
+	if len(inputs) != len(req.InputLotIDs) {
+		utils.WriteValidationError(w, "One or more input lots were not found, or are not in your custody")
+		return
+	}
+
+	mineral := inputs[0].MineralType
+	totalInputKg := 0.0
+	var chosenCert *uint
+	var chosenSite string
+	var chosenCoCSystem string
+	bestRank := -1
+	for _, lot := range inputs {
+		if lot.IsExported {
+			utils.WriteValidationError(w, fmt.Sprintf("Lot %s has already been exported and cannot be processed", lot.LotNumber))
+			return
+		}
+		if lot.MineralType != mineral {
+			utils.WriteValidationError(w, "Input lots must all be the same designated mineral")
+			return
+		}
+		if lot.MineSiteStatus == data.StatusRed {
+			utils.WriteValidationError(w, fmt.Sprintf("Lot %s originates from a red-status mine site and cannot be processed", lot.LotNumber))
+			return
+		}
+		factor, ok := data.UnitToKg[strings.ToLower(lot.Unit)]
+		if !ok {
+			utils.WriteValidationError(w, fmt.Sprintf("Lot %s is in a unit that can't be converted to kg (%s)", lot.LotNumber, lot.Unit))
+			return
+		}
+		totalInputKg += lot.Weight * factor
+
+		if rank, ok := statusRank[lot.MineSiteStatus]; ok && (bestRank == -1 || rank < bestRank) {
+			bestRank = rank
+			chosenCert = lot.MineSiteCertificationID
+			chosenSite = lot.SourceMineSite
+			chosenCoCSystem = lot.CoCSystem
+		}
+	}
+
+	outputWeight := req.OutputWeight
+	if outputWeight <= 0 {
+		outputWeight = totalInputKg - req.WasteGenerated
+	}
+	if outputWeight <= 0 {
+		utils.WriteValidationError(w, "Output weight must be greater than zero once waste is subtracted")
+		return
+	}
+	if outputWeight+req.WasteGenerated > totalInputKg+0.0001 {
+		utils.WriteValidationError(w, fmt.Sprintf(
+			"Output plus waste (%.2f kg) cannot exceed the total input weight (%.2f kg)", outputWeight+req.WasteGenerated, totalInputKg))
+		return
+	}
+
+	outputStatus := data.StatusBlue
+	if chosenSite == "" {
+		chosenSite = inputs[0].SourceMineSite
+		chosenCoCSystem = inputs[0].CoCSystem
+	}
+	for status, rank := range statusRank {
+		if rank == bestRank {
+			outputStatus = status
+		}
+	}
+
+	lotNumber := generateLotNumber()
+	verifyCode := generateVerifyCode()
+	outputLot := &data.CoCLot{
+		LotNumber:               lotNumber,
+		VerifyCode:              &verifyCode,
+		MineralType:             mineral,
+		Weight:                  outputWeight,
+		Unit:                    "kg",
+		GradeValue:              req.OutputGradeValue,
+		GradeUnit:               req.OutputGradeUnit,
+		SourceMineSite:          chosenSite,
+		MineSiteStatus:          outputStatus,
+		MineSiteCertificationID: chosenCert,
+		CoCSystem:               chosenCoCSystem,
+		SealNumber:              req.SealNumber,
+		UserID:                  userID,
+	}
+
+	processTypeJSON, _ := json.Marshal(req.ProcessType)
+	inputBatchesJSON, _ := json.Marshal(inputs)
+	outputItemsJSON, _ := json.Marshal([]map[string]interface{}{
+		{"name": lotNumber, "weight": outputWeight, "unit": "kg"},
+	})
+	now := time.Now()
+	rec := &data.ProcessingRecord{
+		FacilityID:       "",
+		FacilityName:     strings.TrimSpace(req.FacilityName),
+		ProcessType:      string(processTypeJSON),
+		InputBatches:     string(inputBatchesJSON),
+		Equipment:        "[]",
+		Parameters:       "",
+		Duration:         req.Duration,
+		Operator:         req.Operator,
+		Supervisor:       req.Supervisor,
+		StartTime:        now,
+		EndTime:          &now, // recorded after the fact, not scheduled ahead of it
+		OutputItems:      string(outputItemsJSON),
+		Yield:            (outputWeight / totalInputKg) * 100,
+		WasteGenerated:   req.WasteGenerated,
+		SamplesCollected: req.SamplesCollected,
+		QualityNotes:     &req.QualityNotes,
+		// TrackingStatus is really a lot's supply-chain position, reused here
+		// for lack of a dedicated processing-record status; "scheduled" is
+		// what both existing (unlinked) processing forms already use.
+		Status: "scheduled",
+	}
+
+	result, err := h.ComplianceRepo.CreateProcessingRun(userID, req.InputLotIDs, outputLot, rec)
+	if err != nil {
+		utils.WriteValidationError(w, err.Error())
+		return
+	}
+	utils.WriteSuccessResponse(w, fmt.Sprintf("Processing run recorded — output lot %s created", result.OutputLot.LotNumber), result)
+}
+
 // buildComposition validates the source lots of a mixed lot and returns the
 // composition rows plus the summed contributed weight.
 func (h *ComplianceHandler) buildComposition(req CoCLotRequest, userID uint) ([]data.LotComposition, float64, error) {
