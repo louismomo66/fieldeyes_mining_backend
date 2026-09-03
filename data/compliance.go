@@ -16,6 +16,35 @@ type ComplianceRepository struct {
 	db *gorm.DB
 }
 
+// unitToKg mirrors lib/stock.ts's UNIT_TO_KG on the frontend — keep the two in
+// sync. Without this, summing production records recorded in different units
+// (2 g + 1 kg) added the raw numbers together (= 3) instead of converting
+// first (= 1.002 kg), and copied whichever record's unit happened to be first.
+var unitToKg = map[string]float64{
+	"kg":     1,
+	"g":      0.001,
+	"grams":  0.001,
+	"tonnes": 1000,
+	"t":      1000,
+	// Troy ounce — the precious-metals standard, not the avoirdupois ounce.
+	"oz": 0.0311034768,
+}
+
+// sumQuantityKg converts every item's quantity to kilograms and adds it up.
+// Items in a unit the table doesn't recognise are skipped — reported by
+// unconvertibleCount — rather than added in at the wrong scale.
+func sumQuantityKg(items []InventoryItem) (totalKg float64, unconvertibleCount int) {
+	for _, item := range items {
+		factor, ok := unitToKg[strings.ToLower(item.Unit)]
+		if !ok {
+			unconvertibleCount++
+			continue
+		}
+		totalKg += item.Quantity * factor
+	}
+	return totalKg, unconvertibleCount
+}
+
 // NewComplianceRepository creates a compliance repository.
 func NewComplianceRepository(db *gorm.DB) ComplianceInterface {
 	return &ComplianceRepository{db: db}
@@ -259,19 +288,22 @@ func (r *ComplianceRepository) InsertCoCLotWithLinks(record *CoCLot, productionR
 				return fmt.Errorf("one or more production records were not found")
 			}
 			// Auto-fill weight and weighted-average grade from the linked
-			// production records so nothing is re-typed.
+			// production records so nothing is re-typed. Records can be logged in
+			// different units (a pit tally in grams, a stockpile in kg), so they
+			// are converted to a common unit before being summed or weighted —
+			// never added or weighted by their raw, mismatched quantities.
 			if record.Weight <= 0 {
-				total := 0.0
-				for _, item := range items {
-					total += item.Quantity
-				}
-				record.Weight = total
-				if record.Unit == "" && len(items) > 0 {
-					record.Unit = items[0].Unit
-				}
+				// Any record in a unit outside unitToKg is excluded from the sum
+				// rather than added in at the wrong scale — matching how the
+				// Inventory reconciliation (lib/stock.ts) treats the same case.
+				// In practice this is rare: production entry only offers
+				// convertible units (kg, g, tonnes, oz).
+				totalKg, _ := sumQuantityKg(items)
+				record.Weight = totalKg
+				record.Unit = "kg"
 			}
 			if record.GradeValue == nil {
-				weightSum, gradeSum := 0.0, 0.0
+				weightSumKg, gradeSum := 0.0, 0.0
 				var unit *string
 				consistent := true
 				for _, item := range items {
@@ -285,11 +317,17 @@ func (r *ComplianceRepository) InsertCoCLotWithLinks(record *CoCLot, productionR
 						consistent = false
 						break
 					}
-					weightSum += item.Quantity
-					gradeSum += *item.GradeValue * item.Quantity
+					factor, ok := unitToKg[strings.ToLower(item.Unit)]
+					if !ok {
+						consistent = false
+						break
+					}
+					kg := item.Quantity * factor
+					weightSumKg += kg
+					gradeSum += *item.GradeValue * kg
 				}
-				if consistent && weightSum > 0 && unit != nil {
-					avg := gradeSum / weightSum
+				if consistent && weightSumKg > 0 && unit != nil {
+					avg := gradeSum / weightSumKg
 					record.GradeValue = &avg
 					record.GradeUnit = unit
 				}
