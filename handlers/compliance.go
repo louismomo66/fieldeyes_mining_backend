@@ -341,6 +341,14 @@ func (h *ComplianceHandler) CreateCoCLot(w http.ResponseWriter, r *http.Request)
 		req.Weight = compWeight
 	}
 
+	// Some clients (the workflow-first lot registration) derive everything
+	// about a lot and never collect a lot number from the user — mint one
+	// rather than reject the request. A client that does collect its own
+	// (the manual compliance form) is left untouched.
+	if req.LotNumber == "" {
+		req.LotNumber = generateLotNumber()
+	}
+
 	prodIDs := []uint{}
 	if req.ProductionRecordIDs != nil {
 		prodIDs = *req.ProductionRecordIDs
@@ -686,6 +694,25 @@ func generateVerifyCode() string {
 		return fmt.Sprintf("v%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(b)
+}
+
+// generateLotNumber mints a lot number for clients that derive everything else
+// about a lot (weight, grade, site status) and were never given a field to
+// type one in — the workflow-first registration flow, not the older manual
+// form. Same shape MineTrace uses: LOT-<year>-<3 random uppercase chars>.
+// LotNumber has no unique constraint in this schema, so a collision is
+// cosmetic, not a write failure — the random suffix just keeps it unlikely.
+func generateLotNumber() string {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // no 0/O/1/I — easy to misread on a printed tag
+	b := make([]byte, 3)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("LOT-%d-%d", time.Now().Year(), time.Now().UnixNano()%1000)
+	}
+	suffix := make([]byte, 3)
+	for i, v := range b {
+		suffix[i] = alphabet[int(v)%len(alphabet)]
+	}
+	return fmt.Sprintf("LOT-%d-%s", time.Now().Year(), string(suffix))
 }
 
 // GetPublicVerification returns a sanitized, login-free view of a lot's chain of
